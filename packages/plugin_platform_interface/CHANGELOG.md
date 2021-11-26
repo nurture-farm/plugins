@@ -1,3 +1,19 @@
+## 2.0.2
+
+* Update package description.
+
+## 2.0.1
+
+* Fix `federated flutter plugins` link in the README.md.
+
+## 2.0.0
+
+* Migrate to null safety.
+
+## 1.0.3
+
+* Fix homepage in `pubspec.yaml`.
+
 ## 1.0.2
 
 * Make the pedantic dev_dependency explicit.

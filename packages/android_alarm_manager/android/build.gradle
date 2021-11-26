@@ -1,10 +1,11 @@
 group 'io.flutter.plugins.androidalarmmanager'
 version '1.0-SNAPSHOT'
+def args = ["-Xlint:deprecation","-Xlint:unchecked"]
 
 buildscript {
     repositories {
         google()
-        jcenter()
+        mavenCentral()
     }
 
     dependencies {
@@ -15,24 +16,43 @@ buildscript {
 rootProject.allprojects {
     repositories {
         google()
-        jcenter()
+        mavenCentral()
     }
+}
+
+project.getTasks().withType(JavaCompile){
+    options.compilerArgs.addAll(args)
 }
 
 apply plugin: 'com.android.library'
 
 android {
-    compileSdkVersion 28
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
+    compileSdkVersion 29
     defaultConfig {
         minSdkVersion 16
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
     lintOptions {
         disable 'InvalidPackage'
+        disable 'GradleDependency'
+        baseline file("lint-baseline.xml")
+    }
+
+
+    testOptions {
+        unitTests.includeAndroidResources = true
+        unitTests.returnDefaultValues = true
+        unitTests.all {
+            testLogging {
+               events "passed", "skipped", "failed", "standardOut", "standardError"
+               outputs.upToDateWhen {false}
+               showStandardStreams = true
+            }
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
     }
 }
 

@@ -1,3 +1,40 @@
+## 2.1.2
+
+* Fixes link in README.
+
+## 2.1.1
+
+* Removed obsolete `pluginClass: none` from pubpsec.
+
+## 2.1.0
+
+* Now `getTemporaryPath` returns the value of the `TMPDIR` environment variable primarily. If `TMPDIR` is not set, `/tmp` is returned.
+
+## 2.0.2
+
+* Updated installation instructions in README.
+
+## 2.0.1
+
+* Add `implements` to pubspec.yaml.
+* Add `registerWith` method to the main Dart class.
+
+## 2.0.0
+
+* Migrate to null safety.
+
+## 0.1.1+3
+
+* Update Flutter SDK constraint.
+
+## 0.1.1+2
+
+* Log errors in the example when calls to the `path_provider` fail.
+
+## 0.1.1+1
+
+* Check in linux/ directory for example/
+
 ## 0.1.1	- NOT PUBLISHED
 * Reverts changes on 0.1.0, which broke the tree.
 
@@ -13,6 +50,5 @@
 * This updates the readme and pubspec and example to reflect the endorsement of this implementation of `path_provider`
 
 ## 0.0.1
-* The initial implementation of path_provider for Linux
+* The initial implementation of path\_provider for Linux
   * Implements getApplicationSupportPath, getApplicationDocumentsPath, getDownloadsPath, and getTemporaryPath
-
