@@ -438,13 +438,15 @@ class Camera
     try {
       if (!pausedPreview) {
         captureSession.setRepeatingRequest(
-            previewRequestBuilder.build(), cameraCaptureCallback, backgroundHandler);
+                previewRequestBuilder.build(), cameraCaptureCallback, backgroundHandler);
       }
 
       if (onSuccessCallback != null) {
         onSuccessCallback.run();
       }
 
+    } catch (IllegalStateException e) {
+      onErrorCallback.onError("cameraAccess", "Camera is closed: " + e.getMessage());
     } catch (CameraAccessException e) {
       onErrorCallback.onError("cameraAccess", e.getMessage());
     }
