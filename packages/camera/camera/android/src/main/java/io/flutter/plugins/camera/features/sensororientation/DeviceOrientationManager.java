@@ -186,7 +186,7 @@ public class DeviceOrientationManager {
         break;
     }
 
-    //Todo: commenting for front cam - mirror image selfie issue
+    //Todo: commenting for front cam - mirror image orientation selfie issue
     /*if (isFrontFacing) {
       angle *= -1;
     }*/
