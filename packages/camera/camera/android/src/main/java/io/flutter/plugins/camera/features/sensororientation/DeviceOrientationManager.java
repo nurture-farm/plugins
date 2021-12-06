@@ -186,9 +186,10 @@ public class DeviceOrientationManager {
         break;
     }
 
-    if (isFrontFacing) {
+    //Todo: commenting for front cam - mirror image selfie issue
+    /*if (isFrontFacing) {
       angle *= -1;
-    }
+    }*/
 
     return (angle + sensorOrientation + 360) % 360;
   }
