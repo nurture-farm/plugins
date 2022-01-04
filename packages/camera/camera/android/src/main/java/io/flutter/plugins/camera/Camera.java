@@ -601,10 +601,11 @@ class Camera
   /** Stops the background thread and its {@link Handler}. */
   public void stopBackgroundThread() {
     if (backgroundHandlerThread != null) {
-      backgroundHandlerThread.quitSafely();
       try {
-        backgroundHandlerThread.join();
-      } catch (InterruptedException e) {
+        //Forcefully quitting the handler since the quitSafely() and join()
+        //do not always finish the thread
+        backgroundHandlerThread.quit();
+      } catch (Exception e) {
         dartMessenger.error(flutterResult, "cameraAccess", e.getMessage(), null);
       }
     }
