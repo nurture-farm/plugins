@@ -1122,7 +1122,8 @@ class Camera implements CameraCaptureCallback.CameraCaptureStateListener, ImageR
 
   private void handleDetectionForBarcode(final EventChannel.EventSink imageStreamSink,Image image,List<Integer> formatList,Integer imageRotation) {
 
-    InputImage inputImage = InputImage.fromMediaImage(image,90);
+    InputImage inputImage = InputImage.fromMediaImage(image,imageRotation);
+    image.close();
     if (formatList == null) {
       imageStreamSink.error("BarcodeDetectorError", "Invalid barcode formats", null);
       return;
@@ -1262,7 +1263,6 @@ class Camera implements CameraCaptureCallback.CameraCaptureStateListener, ImageR
         }
         final Handler handler = new Handler(Looper.getMainLooper());
         handler.post(() -> imageStreamSink.success(barcodeList));
-        image.close();
       }
     }).addOnFailureListener(new OnFailureListener() {
       @Override
