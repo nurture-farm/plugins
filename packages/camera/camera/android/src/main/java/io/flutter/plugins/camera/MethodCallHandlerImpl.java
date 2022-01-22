@@ -25,6 +25,7 @@ import io.flutter.plugins.camera.features.flash.FlashMode;
 import io.flutter.plugins.camera.features.resolution.ResolutionPreset;
 import io.flutter.view.TextureRegistry;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 final class MethodCallHandlerImpl implements MethodChannel.MethodCallHandler {
@@ -258,6 +259,18 @@ final class MethodCallHandlerImpl implements MethodChannel.MethodCallHandler {
           }
           break;
         }
+      case "startBarcodeDetection":
+      {
+        try {
+          List<Integer> formatList = call.argument("formats");
+          int imageRotation = (Integer) call.argument("imageRotation");
+          camera.startBarcodeDetection(imageStreamChannel,formatList,imageRotation);
+          result.success(null);
+        } catch (Exception e) {
+          handleException(e, result);
+        }
+        break;
+      }
       case "stopImageStream":
         {
           try {
