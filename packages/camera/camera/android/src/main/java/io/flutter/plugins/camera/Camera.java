@@ -144,6 +144,8 @@ class Camera implements CameraCaptureCallback.CameraCaptureStateListener, ImageR
 
   private MethodChannel.Result flutterResult;
 
+  private boolean isBusyInDetectingBarcodes = false;
+
   private BarcodeScanner barcodeScanner;
 
   public Camera(
@@ -1025,7 +1027,6 @@ class Camera implements CameraCaptureCallback.CameraCaptureStateListener, ImageR
   public void startBarcodeDetection(EventChannel imageStreamChannel,List<Integer> formatList,Integer imageRotation) throws CameraAccessException {
     createCaptureSession(CameraDevice.TEMPLATE_RECORD, imageStreamReader.getSurface());
     Log.i(TAG, "startBarcodeDetection");
-
     imageStreamChannel.setStreamHandler(
             new EventChannel.StreamHandler() {
               @Override
@@ -1112,9 +1113,14 @@ class Camera implements CameraCaptureCallback.CameraCaptureStateListener, ImageR
   private void setImageStreamImageAvailableListenerForBarcodeDetection(final EventChannel.EventSink imageStreamSink,final List<Integer> formatList,Integer imageRotation) {
     imageStreamReader.setOnImageAvailableListener(
             reader -> {
+              if(isBusyInDetectingBarcodes)
+                return;
               Image img = reader.acquireNextImage();
               // Use acquireNextImage since image reader is only for one image.
-              if (img == null) return;
+              if (img == null){
+                setBarcodeProcessingAsIdle();
+                return;
+              };
               handleDetectionForBarcode(imageStreamSink,img,formatList,imageRotation);
             },
             backgroundHandler);
@@ -1122,10 +1128,24 @@ class Camera implements CameraCaptureCallback.CameraCaptureStateListener, ImageR
 
   private void handleDetectionForBarcode(final EventChannel.EventSink imageStreamSink,Image image,List<Integer> formatList,Integer imageRotation) {
 
-    InputImage inputImage = InputImage.fromMediaImage(image,imageRotation);
+    setBarcodeProcessingAsBusy();
+    ByteBuffer bytesBuffer = ByteBuffer.allocate(0);
+    for (Image.Plane plane : image.getPlanes()) {
+      ByteBuffer planeBuffer = plane.getBuffer();
+      bytesBuffer = appendByteBuffer(bytesBuffer, planeBuffer);
+    }
+
+    InputImage inputImage = InputImage.fromByteArray(getBytes(bytesBuffer),
+            image.getWidth(),
+            image.getHeight(),
+            imageRotation,
+            InputImage.IMAGE_FORMAT_NV21);
+
+    //InputImage inputImage = InputImage.fromMediaImage(image,imageRotation);
     image.close();
     if (formatList == null) {
       imageStreamSink.error("BarcodeDetectorError", "Invalid barcode formats", null);
+      setBarcodeProcessingAsIdle();
       return;
     }
 
@@ -1146,7 +1166,6 @@ class Camera implements CameraCaptureCallback.CameraCaptureStateListener, ImageR
       public void onSuccess(List<Barcode> barcodes) {
         List<Map<String, Object>> barcodeList = new ArrayList<>(barcodes.size());
         for (Barcode barcode : barcodes) {
-
           Map<String, Object> barcodeMap = new HashMap<>();
           int valueType = barcode.getValueType();
           barcodeMap.put("type", valueType);
@@ -1262,21 +1281,54 @@ class Camera implements CameraCaptureCallback.CameraCaptureStateListener, ImageR
           barcodeList.add(barcodeMap);
         }
         final Handler handler = new Handler(Looper.getMainLooper());
+        setBarcodeProcessingAsIdle();
         handler.post(() -> imageStreamSink.success(barcodeList));
       }
     }).addOnFailureListener(new OnFailureListener() {
       @Override
       public void onFailure(@NonNull Exception e) {
         final Handler handler = new Handler(Looper.getMainLooper());
+        setBarcodeProcessingAsIdle();
         handler.post(() -> imageStreamSink.error("BarcodeDetectorError", e.toString(), null));
       }
     });
   }
 
+  @NonNull
+  private byte[] getBytes(ByteBuffer bytesBuffer) {
+    bytesBuffer.rewind();
+    int lengthOfBuffer = bytesBuffer.limit();
+    byte[] imageBytes = new byte[lengthOfBuffer];
+    bytesBuffer.get(imageBytes, 0, lengthOfBuffer);
+    return imageBytes;
+  }
+
+  @NonNull
+  private ByteBuffer appendByteBuffer(ByteBuffer bytesBuffer, ByteBuffer buffer) {
+    int previousLengthOfBuffer = bytesBuffer.limit();
+    int newLengthOfBuffer = previousLengthOfBuffer + buffer.limit();
+    bytesBuffer.rewind();
+    bytesBuffer = ByteBuffer.allocate(newLengthOfBuffer).put(bytesBuffer).put(buffer);
+    return bytesBuffer;
+  }
+
+  private void setBarcodeProcessingAsBusy() {
+    isBusyInDetectingBarcodes = true;
+  }
+
+  private void setBarcodeProcessingAsIdle() {
+    isBusyInDetectingBarcodes = false;
+  }
+
+  public void closeDetector() {
+    if(barcodeScanner != null){
+      barcodeScanner.close();
+    }
+  }
+
   private void closeCaptureSession() {
     if (captureSession != null) {
       Log.i(TAG, "closeCaptureSession");
-
       captureSession.close();
       captureSession = null;
     }

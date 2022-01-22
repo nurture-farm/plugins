@@ -441,11 +441,8 @@ class CameraController extends ValueNotifier<CameraValue> {
     } on PlatformException catch (e) {
       throw CameraException(e.code, e.message);
     }
-    const EventChannel cameraEventChannel =
-        EventChannel('plugins.flutter.io/camera/imageStream');
-    _imageStreamSubscription =
-        cameraEventChannel.receiveBroadcastStream().listen(
-      (dynamic imageData) {
+    const EventChannel cameraEventChannel = EventChannel('plugins.flutter.io/camera/imageStream');
+    _imageStreamSubscription = cameraEventChannel.receiveBroadcastStream().listen((dynamic imageData) {
         onAvailable(CameraImage.fromPlatformData(imageData));
       },
     );
@@ -464,8 +461,8 @@ class CameraController extends ValueNotifier<CameraValue> {
   Future<void> startStreamingForBarcodes({
     required onLatestBarcodeAvailable onAvailable,
     required int sensorOrientation,
+    required List<BarcodeFormat> formats,
   }) async {
-    List<BarcodeFormat> formats = [BarcodeFormat.qrCode];
     assert(defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS);
     _throwIfNotInitialized("startStreamingForBarcodes");
     if (value.isRecordingVideo) {
@@ -529,6 +526,41 @@ class CameraController extends ValueNotifier<CameraValue> {
     try {
       value = value.copyWith(isStreamingImages: false);
       await _channel.invokeMethod<void>('stopImageStream');
+    } on PlatformException catch (e) {
+      throw CameraException(e.code, e.message);
+    }
+
+    await _imageStreamSubscription?.cancel();
+    _imageStreamSubscription = null;
+  }
+
+  /// Stop streaming images from platform camera.
+  ///
+  /// Throws a [CameraException] if image streaming was not started or video
+  /// recording was started.
+  ///
+  /// The `stopImageStream` method is only available on Android and iOS (other
+  /// platforms won't be supported in current setup).
+  Future<void> stopStreamingForBarcodes() async {
+    assert(defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS);
+    _throwIfNotInitialized("stopStreamingForBarcodes");
+    if (value.isRecordingVideo) {
+      throw CameraException(
+        'A video recording is already started.',
+        'stopStreamingForBarcodes was called while a video is being recorded.',
+      );
+    }
+    if (!value.isStreamingImages) {
+      throw CameraException(
+        'No camera is streaming barcodes',
+        'stopStreamingForBarcodes was called when no camera is streaming images.',
+      );
+    }
+
+    try {
+      value = value.copyWith(isStreamingImages: false);
+      await _channel.invokeMethod<void>('stopBarcodeDetection');
     } on PlatformException catch (e) {
       throw CameraException(e.code, e.message);
     }
