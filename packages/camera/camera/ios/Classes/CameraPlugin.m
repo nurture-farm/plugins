@@ -3,11 +3,22 @@
 // found in the LICENSE file.
 
 #import "CameraPlugin.h"
+#import "CameraPlugin_Test.h"
 #import <AVFoundation/AVFoundation.h>
 #import <Accelerate/Accelerate.h>
 #import <CoreMotion/CoreMotion.h>
 #import <libkern/OSAtomic.h>
 #import <uuid/uuid.h>
+
+#import "CameraProperties.h"
+#import "FLTCam.h"
+#import "FLTThreadSafeEventChannel.h"
+#import "FLTThreadSafeFlutterResult.h"
+#import "FLTThreadSafeMethodChannel.h"
+#import "FLTThreadSafeTextureRegistry.h"
+#import "QueueHelper.h"
+
+@import AVFoundation;
 
 static FlutterError *getFlutterError(NSError *error) {
   return [FlutterError errorWithCode:[NSString stringWithFormat:@"Error %d", (int)error.code]
@@ -651,18 +662,6 @@ NSString *const errorMethod = @"error";
         size_t height;
         size_t width;
 
-        if (isPlanar) {
-          planeAddress = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, i);
-          bytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, i);
-          height = CVPixelBufferGetHeightOfPlane(pixelBuffer, i);
-          width = CVPixelBufferGetWidthOfPlane(pixelBuffer, i);
-        } else {
-          planeAddress = CVPixelBufferGetBaseAddress(pixelBuffer);
-          bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer);
-          height = CVPixelBufferGetHeight(pixelBuffer);
-          width = CVPixelBufferGetWidth(pixelBuffer);
-        }
-
         NSNumber *length = @(bytesPerRow * height);
         NSData *bytes = [NSData dataWithBytes:planeAddress length:length.unsignedIntegerValue];
 
@@ -710,7 +709,7 @@ NSString *const errorMethod = @"error";
         } else {
           planeCount = 1;
         }
-        
+
         for (int i = 0; i < planeCount; i++) {
           void *planeAddress;
           size_t bytesPerRow;
@@ -1400,10 +1399,10 @@ NSString *const errorMethod = @"error";
               height:(NSNumber *)height
               format:(FourCharCode)format {
     MLKVisionImage *image = [MLKVisionImage visionImageFromData:bytes planeData:planeData width:width height:height format:format];
-    
+
     MLKBarcodeScannerOptions *options = [[MLKBarcodeScannerOptions alloc] initWithFormats: MLKBarcodeFormatQRCode];
     _barcodeScanner = [MLKBarcodeScanner barcodeScannerWithOptions:options];
-    
+
     _isDetectingBarcodeFromImage = YES;
     [_barcodeScanner processImage:image
                       completion:^(NSArray<MLKBarcode *> *barcodes, NSError *error) {
@@ -1418,7 +1417,7 @@ NSString *const errorMethod = @"error";
             }
             return;
         }
-        
+
         NSMutableArray *array = [NSMutableArray array];
         for (MLKBarcode *barcode in barcodes) {
             [array addObject:[MLKVisionImage barcodeToDictionary:barcode]];
@@ -1433,15 +1432,13 @@ NSString *const errorMethod = @"error";
 @end
 
 @interface CameraPlugin ()
-@property(readonly, nonatomic) NSObject<FlutterTextureRegistry> *registry;
+@property(readonly, nonatomic) FLTThreadSafeTextureRegistry *registry;
 @property(readonly, nonatomic) NSObject<FlutterBinaryMessenger> *messenger;
-@property(readonly, nonatomic) FLTCam *camera;
-@property(readonly, nonatomic) FlutterMethodChannel *deviceEventMethodChannel;
+@property(readonly, nonatomic) FLTThreadSafeMethodChannel *deviceEventMethodChannel;
 @end
 
-@implementation CameraPlugin {
-  dispatch_queue_t _dispatchQueue;
-}
+@implementation CameraPlugin
+
 + (void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar> *)registrar {
   FlutterMethodChannel *channel =
       [FlutterMethodChannel methodChannelWithName:@"plugins.flutter.io/camera"
@@ -1455,17 +1452,23 @@ NSString *const errorMethod = @"error";
                        messenger:(NSObject<FlutterBinaryMessenger> *)messenger {
   self = [super init];
   NSAssert(self, @"super init cannot be nil");
-  _registry = registry;
+  _registry = [[FLTThreadSafeTextureRegistry alloc] initWithTextureRegistry:registry];
   _messenger = messenger;
+  _captureSessionQueue = dispatch_queue_create("io.flutter.camera.captureSessionQueue", NULL);
+  dispatch_queue_set_specific(_captureSessionQueue, FLTCaptureSessionQueueSpecific,
+                              (void *)FLTCaptureSessionQueueSpecific, NULL);
+
   [self initDeviceEventMethodChannel];
   [self startOrientationListener];
   return self;
 }
 
 - (void)initDeviceEventMethodChannel {
-  _deviceEventMethodChannel =
+  FlutterMethodChannel *methodChannel =
       [FlutterMethodChannel methodChannelWithName:@"flutter.io/cameraPlugin/device"
                                   binaryMessenger:_messenger];
+  _deviceEventMethodChannel =
+      [[FLTThreadSafeMethodChannel alloc] initWithMethodChannel:methodChannel];
 }
 
 - (void)startOrientationListener {
@@ -1485,31 +1488,32 @@ NSString *const errorMethod = @"error";
     return;
   }
 
-  if (_camera) {
-    [_camera setDeviceOrientation:orientation];
-  }
-
-  [self sendDeviceOrientation:orientation];
+  dispatch_async(self.captureSessionQueue, ^{
+    // `FLTCam::setDeviceOrientation` must be called on capture session queue.
+    [self.camera setDeviceOrientation:orientation];
+    // `CameraPlugin::sendDeviceOrientation` can be called on any queue.
+    [self sendDeviceOrientation:orientation];
+  });
 }
 
 - (void)sendDeviceOrientation:(UIDeviceOrientation)orientation {
   [_deviceEventMethodChannel
       invokeMethod:@"orientation_changed"
-         arguments:@{@"orientation" : getStringForUIDeviceOrientation(orientation)}];
+         arguments:@{@"orientation" : FLTGetStringForUIDeviceOrientation(orientation)}];
 }
 
 - (void)handleMethodCall:(FlutterMethodCall *)call result:(FlutterResult)result {
-  if (_dispatchQueue == nil) {
-    _dispatchQueue = dispatch_queue_create("io.flutter.camera.dispatchqueue", NULL);
-  }
-
   // Invoke the plugin on another dispatch queue to avoid blocking the UI.
-  dispatch_async(_dispatchQueue, ^{
-    [self handleMethodCallAsync:call result:result];
+  dispatch_async(_captureSessionQueue, ^{
+    FLTThreadSafeFlutterResult *threadSafeResult =
+        [[FLTThreadSafeFlutterResult alloc] initWithResult:result];
+
+    [self handleMethodCallAsync:call result:threadSafeResult];
   });
 }
 
-- (void)handleMethodCallAsync:(FlutterMethodCall *)call result:(FlutterResult)result {
+- (void)handleMethodCallAsync:(FlutterMethodCall *)call
+                       result:(FLTThreadSafeFlutterResult *)result {
   if ([@"availableCameras" isEqualToString:call.method]) {
     if (@available(iOS 10.0, *)) {
       AVCaptureDeviceDiscoverySession *discoverySession = [AVCaptureDeviceDiscoverySession
@@ -1538,9 +1542,9 @@ NSString *const errorMethod = @"error";
           @"sensorOrientation" : @90,
         }];
       }
-      result(reply);
+      [result sendSuccessWithData:reply];
     } else {
-      result(FlutterMethodNotImplemented);
+      [result sendNotImplemented];
     }
   } else if ([@"create" isEqualToString:call.method]) {
     NSString *cameraName = call.arguments[@"cameraName"];
@@ -1551,34 +1555,35 @@ NSString *const errorMethod = @"error";
                                     resolutionPreset:resolutionPreset
                                          enableAudio:[enableAudio boolValue]
                                          orientation:[[UIDevice currentDevice] orientation]
-                                       dispatchQueue:_dispatchQueue
+                                 captureSessionQueue:_captureSessionQueue
                                                error:&error];
 
     if (error) {
-      result(getFlutterError(error));
+      [result sendError:error];
     } else {
       if (_camera) {
         [_camera close];
       }
-      int64_t textureId = [_registry registerTexture:cam];
       _camera = cam;
-
-      result(@{
-        @"cameraId" : @(textureId),
-      });
+      [self.registry registerTexture:cam
+                          completion:^(int64_t textureId) {
+                            [result sendSuccessWithData:@{
+                              @"cameraId" : @(textureId),
+                            }];
+                          }];
     }
   } else if ([@"startImageStream" isEqualToString:call.method]) {
     [_camera startImageStreamWithMessenger:_messenger];
-    result(nil);
+    [result sendSuccess];
   } else if ([@"stopImageStream" isEqualToString:call.method]) {
     [_camera stopImageStream];
-    result(nil);
+    [result sendSuccess];
   } else {
     NSDictionary *argsMap = call.arguments;
     NSUInteger cameraId = ((NSNumber *)argsMap[@"cameraId"]).unsignedIntegerValue;
     if ([@"initialize" isEqualToString:call.method]) {
       NSString *videoFormatValue = ((NSString *)argsMap[@"imageFormatGroup"]);
-      videoFormat = getVideoFormatFromString(videoFormatValue);
+      [_camera setVideoFormat:FLTGetVideoFormatFromString(videoFormatValue)];
 
       __weak CameraPlugin *weakSelf = self;
       _camera.onFrameAvailable = ^{
@@ -1590,35 +1595,36 @@ NSString *const errorMethod = @"error";
           methodChannelWithName:[NSString stringWithFormat:@"flutter.io/cameraPlugin/camera%lu",
                                                            (unsigned long)cameraId]
                 binaryMessenger:_messenger];
-      _camera.methodChannel = methodChannel;
-      [methodChannel
+      FLTThreadSafeMethodChannel *threadSafeMethodChannel =
+          [[FLTThreadSafeMethodChannel alloc] initWithMethodChannel:methodChannel];
+      _camera.methodChannel = threadSafeMethodChannel;
+      [threadSafeMethodChannel
           invokeMethod:@"initialized"
              arguments:@{
                @"previewWidth" : @(_camera.previewSize.width),
                @"previewHeight" : @(_camera.previewSize.height),
-               @"exposureMode" : getStringForExposureMode([_camera exposureMode]),
-               @"focusMode" : getStringForFocusMode([_camera focusMode]),
+               @"exposureMode" : FLTGetStringForFLTExposureMode([_camera exposureMode]),
+               @"focusMode" : FLTGetStringForFLTFocusMode([_camera focusMode]),
                @"exposurePointSupported" :
                    @([_camera.captureDevice isExposurePointOfInterestSupported]),
                @"focusPointSupported" : @([_camera.captureDevice isFocusPointOfInterestSupported]),
              }];
       [self sendDeviceOrientation:[UIDevice currentDevice].orientation];
       [_camera start];
-      result(nil);
+      [result sendSuccess];
     } else if ([@"takePicture" isEqualToString:call.method]) {
       if (@available(iOS 10.0, *)) {
         [_camera captureToFile:result];
       } else {
-        result(FlutterMethodNotImplemented);
+        [result sendNotImplemented];
       }
     } else if ([@"dispose" isEqualToString:call.method]) {
       [_registry unregisterTexture:cameraId];
       [_camera close];
-      _dispatchQueue = nil;
-      result(nil);
+      [result sendSuccess];
     } else if ([@"prepareForVideoRecording" isEqualToString:call.method]) {
       [_camera setUpCaptureSessionForAudio];
-      result(nil);
+      [result sendSuccess];
     } else if ([@"startVideoRecording" isEqualToString:call.method]) {
       [_camera startVideoRecordingWithResult:result];
     } else if ([@"stopVideoRecording" isEqualToString:call.method]) {
@@ -1648,11 +1654,11 @@ NSString *const errorMethod = @"error";
       }
       [_camera setExposurePointWithResult:result x:x y:y];
     } else if ([@"getMinExposureOffset" isEqualToString:call.method]) {
-      result(@(_camera.captureDevice.minExposureTargetBias));
+      [result sendSuccessWithData:@(_camera.captureDevice.minExposureTargetBias)];
     } else if ([@"getMaxExposureOffset" isEqualToString:call.method]) {
-      result(@(_camera.captureDevice.maxExposureTargetBias));
+      [result sendSuccessWithData:@(_camera.captureDevice.maxExposureTargetBias)];
     } else if ([@"getExposureOffsetStepSize" isEqualToString:call.method]) {
-      result(@(0.0));
+      [result sendSuccessWithData:@(0.0)];
     } else if ([@"setExposureOffset" isEqualToString:call.method]) {
       [_camera setExposureOffsetWithResult:result
                                     offset:((NSNumber *)call.arguments[@"offset"]).doubleValue];
@@ -1682,7 +1688,7 @@ NSString *const errorMethod = @"error";
         [_camera stopBarcodeDetection];
         result(nil);
     } else {
-      result(FlutterMethodNotImplemented);
+      [result sendNotImplemented];
     }
   }
 }
