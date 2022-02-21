@@ -545,6 +545,41 @@ class CameraController extends ValueNotifier<CameraValue> {
     _imageStreamSubscription = null;
   }
 
+  /// Stop streaming images from platform camera.
+  ///
+  /// Throws a [CameraException] if image streaming was not started or video
+  /// recording was started.
+  ///
+  /// The `stopImageStream` method is only available on Android and iOS (other
+  /// platforms won't be supported in current setup).
+  Future<void> stopStreamingForBarcodes() async {
+    assert(defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS);
+    _throwIfNotInitialized("stopStreamingForBarcodes");
+    if (value.isRecordingVideo) {
+      throw CameraException(
+        'A video recording is already started.',
+        'stopStreamingForBarcodes was called while a video is being recorded.',
+      );
+    }
+    if (!value.isStreamingImages) {
+      throw CameraException(
+        'No camera is streaming barcodes',
+        'stopStreamingForBarcodes was called when no camera is streaming images.',
+      );
+    }
+
+    try {
+      value = value.copyWith(isStreamingImages: false);
+      await _channel.invokeMethod<void>('stopBarcodeDetection');
+    } on PlatformException catch (e) {
+      throw CameraException(e.code, e.message);
+    }
+
+    await _imageStreamSubscription?.cancel();
+    _imageStreamSubscription = null;
+  }
+
   /// Start a video recording.
   ///
   /// The video is returned as a [XFile] after calling [stopVideoRecording].
