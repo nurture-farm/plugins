@@ -64,4 +64,6 @@ dependencies {
     testImplementation 'org.mockito:mockito-inline:4.0.0'
     testImplementation 'androidx.test:core:1.3.0'
     testImplementation 'org.robolectric:robolectric:4.5'
+    implementation 'com.google.android.gms:play-services-mlkit-barcode-scanning:17.0.0'
+    implementation 'com.jakewharton.timber:timber:4.7.1'
 }

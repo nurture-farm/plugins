@@ -2,7 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+export 'src/camera_controller.dart';
+export 'src/camera_image.dart';
+export 'src/camera_preview.dart';
 export 'src/barcode_scanner.dart' show BarcodeFormat;
+
 export 'package:camera_platform_interface/camera_platform_interface.dart'
     show
         CameraDescription,
@@ -14,7 +18,3 @@ export 'package:camera_platform_interface/camera_platform_interface.dart'
         ResolutionPreset,
         XFile,
         ImageFormatGroup;
-
-export 'src/camera_controller.dart';
-export 'src/camera_image.dart';
-export 'src/camera_preview.dart';

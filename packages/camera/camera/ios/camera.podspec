@@ -15,12 +15,12 @@ A Flutter plugin to use the camera from your Flutter app.
   s.documentation_url = 'https://pub.dev/packages/camera'
   s.source_files = 'Classes/**/*.{h,m}'
   s.public_header_files = 'Classes/**/*.h'
-  s.module_map = 'Classes/CameraPlugin.modulemap'
   s.static_framework = true
+  s.module_map = 'Classes/CameraPlugin.modulemap'
   s.dependency 'Flutter'
   s.dependency 'MLKitBarcodeScanning'
   s.dependency 'MLKitVision'
-  
+
   s.platform = :ios, '9.0'
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'VALID_ARCHS[sdk=iphonesimulator*]' => 'x86_64' }
 end

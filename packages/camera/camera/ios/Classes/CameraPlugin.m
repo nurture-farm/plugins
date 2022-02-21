@@ -4,8 +4,11 @@
 
 #import "CameraPlugin.h"
 #import "CameraPlugin_Test.h"
-
-@import AVFoundation;
+#import <AVFoundation/AVFoundation.h>
+#import <Accelerate/Accelerate.h>
+#import <CoreMotion/CoreMotion.h>
+#import <libkern/OSAtomic.h>
+#import <uuid/uuid.h>
 
 #import "CameraProperties.h"
 #import "FLTCam.h"
@@ -14,6 +17,8 @@
 #import "FLTThreadSafeMethodChannel.h"
 #import "FLTThreadSafeTextureRegistry.h"
 #import "QueueHelper.h"
+
+@import AVFoundation;
 
 @interface CameraPlugin ()
 @property(readonly, nonatomic) FLTThreadSafeTextureRegistry *registry;

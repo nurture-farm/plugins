@@ -119,6 +119,16 @@ class FakeController extends ValueNotifier<CameraValue>
 
   @override
   Future<void> resumePreview() async {}
+
+  @override
+  Future<void> startStreamingForBarcodes({
+    required onLatestBarcodeAvailable onAvailable,
+    required int sensorOrientation,
+    required List<BarcodeFormat> formats,
+  }) async {}
+
+  @override
+  Future<void> stopStreamingForBarcodes() async {}
 }
 
 void main() {

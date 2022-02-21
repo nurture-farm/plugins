@@ -79,9 +79,7 @@ interface ErrorCallback {
   void onError(String errorCode, String errorMessage);
 }
 
-class Camera
-    implements CameraCaptureCallback.CameraCaptureStateListener,
-        ImageReader.OnImageAvailableListener {
+class Camera implements CameraCaptureCallback.CameraCaptureStateListener, ImageReader.OnImageAvailableListener {
   private static final String TAG = "Camera";
 
   private static final HashMap<String, Integer> supportedImageFormats;
