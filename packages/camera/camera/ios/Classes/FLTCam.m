@@ -1164,11 +1164,17 @@ NSString *const errorMethod = @"error";
       FlutterEventChannel *eventChannel =
           [FlutterEventChannel eventChannelWithName:@"plugins.flutter.io/camera/imageStream"
                                     binaryMessenger:messenger];
-
-      _imageStreamHandler = [[FLTImageStreamHandler alloc] init];
-      [eventChannel setStreamHandler:_imageStreamHandler];
-      _isScanningBarcode = YES;
-      _isDetectingBarcodeFromImage = NO;
+      FLTThreadSafeEventChannel *threadSafeEventChannel =
+          [[FLTThreadSafeEventChannel alloc] initWithEventChannel:eventChannel];
+      
+      _imageStreamHandler = [[FLTImageStreamHandler alloc] initWithCaptureSessionQueue:_captureSessionQueue];
+      [threadSafeEventChannel setStreamHandler:_imageStreamHandler
+                                    completion:^{
+                                      dispatch_async(self->_captureSessionQueue, ^{
+                                        self.isScanningBarcode = YES;
+                                        self.isDetectingBarcodeFromImage = NO;
+                                      });
+                                    }];
     } else {
       [_methodChannel invokeMethod:errorMethod
                          arguments:@"Images from camera are already streaming!"];
