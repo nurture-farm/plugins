@@ -502,8 +502,8 @@ class CameraController extends ValueNotifier<CameraValue> {
     _imageStreamSubscription = cameraEventChannel.receiveBroadcastStream().listen(
       (dynamic barcodeData) {
         final barcodesList = <Barcode>[];
-        for (dynamic item in barcodeData) {
-          barcodesList.add(Barcode.fromMap(item as Map<String, dynamic>));
+        for (var item in barcodeData) {
+          barcodesList.add(Barcode.fromMap(Map<String, dynamic>.from(item)));
         }
         onAvailable(barcodesList);
       },
