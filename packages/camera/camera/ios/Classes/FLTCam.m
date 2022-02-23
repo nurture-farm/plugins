@@ -7,6 +7,8 @@
 #import "FLTSavePhotoDelegate.h"
 #import "QueueHelper.h"
 #import "CameraPlugin.h"
+#import "ImagePlaneData.h"
+#import "MLKVisionImage+FlutterPlugin.h"
 
 @import CoreMotion;
 #import <libkern/OSAtomic.h>
@@ -42,21 +44,6 @@
   });
   return nil;
 }
-@end
-
-@implementation PlaneData
-
-- (instancetype)initWithData:(NSNumber *)width height:(NSNumber *)height bytesPerRow:(NSNumber *)bytesPerRow {
-    self = [super init];
-    if (self) {
-      _width = width;
-      _height = height;
-      _bytesPerRow = bytesPerRow;
-    }
-
-    return self;
-}
-
 @end
 
 @interface FLTCam () <AVCaptureVideoDataOutputSampleBufferDelegate,

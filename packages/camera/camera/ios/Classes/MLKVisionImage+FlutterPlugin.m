@@ -5,8 +5,7 @@
 //  Created by vhiteshmore on 26/01/22.
 //
 
-#import <Foundation/Foundation.h>
-#import "CameraPlugin.h"
+#import "MLKVisionImage+FlutterPlugin.h"
 
 @implementation MLKVisionImage(FlutterPlugin)
 
