@@ -9,7 +9,7 @@
 #import <Flutter/Flutter.h>
 #import <MLKitVision/MLKitVision.h>
 #import <MLKitBarcodeScanning/MLKitBarcodeScanning.h>
-#import "ImagePlaneData.h"
+#import "PlaneData.h"
 
 @interface MLKVisionImage(FlutterPlugin)
 + (MLKVisionImage *)visionImageFromData:(NSData *)bytes

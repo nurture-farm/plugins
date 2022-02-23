@@ -5,7 +5,7 @@
 //  Created by vhitesh more on 23/02/22.
 //
 
-#import "ImagePlaneData.h"
+#import "PlaneData.h"
 
 @implementation PlaneData
 

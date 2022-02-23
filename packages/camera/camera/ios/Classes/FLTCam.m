@@ -7,7 +7,7 @@
 #import "FLTSavePhotoDelegate.h"
 #import "QueueHelper.h"
 #import "CameraPlugin.h"
-#import "ImagePlaneData.h"
+#import "PlaneData.h"
 #import "MLKVisionImage+FlutterPlugin.h"
 
 @import CoreMotion;
