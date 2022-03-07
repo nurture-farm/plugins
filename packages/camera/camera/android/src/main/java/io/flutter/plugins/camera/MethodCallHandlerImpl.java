@@ -8,7 +8,6 @@ import android.app.Activity;
 import android.hardware.camera2.CameraAccessException;
 import android.os.Handler;
 import android.os.Looper;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
