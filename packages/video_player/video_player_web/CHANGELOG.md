@@ -1,3 +1,8 @@
+## 2.1.0
+
+* Adding support for flutter 3.0.4
+* Internal libraries are now path dependent.
+  
 ## 2.0.4
 
 * Adopt `video_player_platform_interface` 4.2 and opt out of `contentUri` data source.

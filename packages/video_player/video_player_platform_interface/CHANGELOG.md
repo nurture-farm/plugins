@@ -1,3 +1,8 @@
+## 4.3.0
+
+* Adding support for flutter 3.0.6
+* Internal libraries are now path dependent
+
 ## 4.2.0
 
 * Add `contentUri` to `DataSourceType`.

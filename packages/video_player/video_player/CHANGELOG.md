@@ -1,3 +1,8 @@
+## 2.3.0
+
+* Adding support for flutter 3.0.5
+* Internal libraries are now path dependent
+
 ## 2.2.4
 
 * Update minimum Flutter SDK to 2.5 and iOS deployment target to 9.0.
