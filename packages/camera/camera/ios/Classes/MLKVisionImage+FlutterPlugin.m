@@ -5,8 +5,7 @@
 //  Created by vhiteshmore on 26/01/22.
 //
 
-#import <Foundation/Foundation.h>
-#import "CameraPlugin.h"
+#import "MLKVisionImage+FlutterPlugin.h"
 
 @implementation MLKVisionImage(FlutterPlugin)
 
@@ -16,9 +15,9 @@
                                             height:(NSNumber *)height
                                   format:(FourCharCode)format {
     NSData *imageBytes = bytes;
-    
+
     size_t planeCount = planeData.count;
-    
+
     CVPixelBufferRef pxBuffer = NULL;
     if (planeCount == 0) {
         @throw [NSException exceptionWithName:NSInvalidArgumentException
@@ -27,7 +26,7 @@
     } else if (planeCount == 1) {
         PlaneData *plane = planeData[0];
         NSNumber *bytesPerRow = [plane bytesPerRow];
-        
+
         pxBuffer = [self bytesToPixelBuffer:width.unsignedLongValue
                                      height:height.unsignedLongValue
                                      format:format
@@ -42,7 +41,7 @@
                                        planeCount:planeCount
                                         planeData:planeData];
     }
-    
+
     return [self pixelBufferToVisionImage:pxBuffer];
 }
 
@@ -67,46 +66,46 @@
     size_t widths[planeCount];
     size_t heights[planeCount];
     size_t bytesPerRows[planeCount];
-    
+
     void *baseAddresses[planeCount];
     baseAddresses[0] = baseAddress;
-    
+
     size_t lastAddressIndex = 0;  // Used to get base address for each plane
     for (int i = 0; i < planeCount; i++) {
         PlaneData *plane = planeData[i];
-        
+
         NSNumber *width = [plane width];
         NSNumber *height = [plane height];
         NSNumber *bytesPerRow = [plane bytesPerRow];
-        
+
         widths[i] = width.unsignedLongValue;
         heights[i] = height.unsignedLongValue;
         bytesPerRows[i] = bytesPerRow.unsignedLongValue;
-        
+
         if (i > 0) {
             size_t addressIndex = lastAddressIndex + heights[i - 1] * bytesPerRows[i - 1];
             baseAddresses[i] = baseAddress + addressIndex;
             lastAddressIndex = addressIndex;
         }
     }
-    
+
     CVPixelBufferRef pxBuffer = NULL;
     CVPixelBufferCreateWithPlanarBytes(kCFAllocatorDefault, width, height, format, NULL, dataSize,
                                        planeCount, baseAddresses, widths, heights, bytesPerRows, NULL,
                                        NULL, NULL, &pxBuffer);
-    
+
     return pxBuffer;
 }
 
 + (MLKVisionImage *)pixelBufferToVisionImage:(CVPixelBufferRef)pixelBufferRef {
     CIImage *ciImage = [CIImage imageWithCVPixelBuffer:pixelBufferRef];
-    
+
     CIContext *temporaryContext = [CIContext contextWithOptions:nil];
     CGImageRef videoImage =
     [temporaryContext createCGImage:ciImage
                            fromRect:CGRectMake(0, 0, CVPixelBufferGetWidth(pixelBufferRef),
                                                CVPixelBufferGetHeight(pixelBufferRef))];
-    
+
     UIImage *uiImage = [UIImage imageWithCGImage:videoImage];
     CVPixelBufferRelease(pixelBufferRef);
     CGImageRelease(videoImage);
@@ -126,7 +125,7 @@
         @"boundingBoxBottom" : @(barcode.frame.origin.y + barcode.frame.size.height),
         @"boundingBoxRight" : @(barcode.frame.origin.x + barcode.frame.size.width)
     }];
-    
+
     switch (barcode.valueType) {
         case MLKBarcodeValueTypeUnknown:
         case MLKBarcodeValueTypeISBN:
@@ -161,7 +160,7 @@
             [dictionary addEntriesFromDictionary:[self calendarEventToDictionary:barcode.calendarEvent]];
             break;
     }
-    
+
     return dictionary;
 }
 
@@ -240,7 +239,7 @@
         }];
         [addresses addObject:@{@"addressLines" : addressLines, @"addressType" : @(address.type)}];
     }];
-    
+
     NSMutableArray<NSDictionary *> *emails = [NSMutableArray array];
     [contact.emails enumerateObjectsUsingBlock:^(MLKBarcodeEmail *_Nonnull email,
                                                  NSUInteger idx, BOOL *_Nonnull stop) {
@@ -251,13 +250,13 @@
             @"emailType" : @(email.type)
         }];
     }];
-    
+
     NSMutableArray<NSDictionary *> *phones = [NSMutableArray array];
     [contact.phones enumerateObjectsUsingBlock:^(MLKBarcodePhone *_Nonnull phone,
                                                  NSUInteger idx, BOOL *_Nonnull stop) {
         [phones addObject:@{@"number" : phone.number ?: [NSNull null], @"phoneType" : @(phone.type)}];
     }];
-    
+
     NSMutableArray<NSString *> *urls = [NSMutableArray array];
     [contact.urls
      enumerateObjectsUsingBlock:^(NSString *_Nonnull url, NSUInteger idx, BOOL *_Nonnull stop) {
