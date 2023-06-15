@@ -366,6 +366,8 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
           break;
         case VideoEventType.unknown:
           break;
+        default:
+          break;
       }
     }
 
