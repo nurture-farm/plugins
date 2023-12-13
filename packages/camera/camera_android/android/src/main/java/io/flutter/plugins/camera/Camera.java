@@ -1151,9 +1151,18 @@ class Camera
 
               @Override
               public void onCancel(Object o) {
-                imageStreamReader.setOnImageAvailableListener(null, backgroundHandler);
+                if (imageStreamReader == null) {
+                  return;
+                }
+                imageStreamReader.removeListener(backgroundHandler);
               }
             });
+  }
+
+  public void closeDetector() {
+    if(imageStreamReader != null){
+      imageStreamReader.closeDetector();
+    }
   }
 
   /**
