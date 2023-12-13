@@ -19,6 +19,15 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import android.graphics.Rect;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.mlkit.vision.barcode.common.Barcode;
+import com.google.mlkit.vision.barcode.BarcodeScanner;
+import com.google.mlkit.vision.barcode.BarcodeScannerOptions;
+import com.google.mlkit.vision.barcode.BarcodeScanning;
+import com.google.mlkit.vision.common.InputImage;
+import timber.log.Timber;
 
 // Wraps an ImageReader to allow for testing of the image handler.
 public class ImageStreamReader {
@@ -32,6 +41,10 @@ public class ImageStreamReader {
 
   private final ImageReader imageReader;
   private final ImageStreamReaderUtils imageStreamReaderUtils;
+
+  private boolean isBusyInDetectingBarcodes = false;
+
+  private BarcodeScanner barcodeScanner;
 
   /**
    * Creates a new instance of the {@link ImageStreamReader}.
@@ -210,6 +223,243 @@ public class ImageStreamReader {
           onImageAvailable(image, captureProps, imageStreamSink);
         },
         handler);
+  }
+
+  public void subscribeBarcodeListener(
+          final List<Integer> formatList,
+          Integer imageRotation,
+          @NonNull EventChannel.EventSink imageStreamSink,
+          @NonNull Handler handler) {
+    imageReader.setOnImageAvailableListener(
+            reader -> {
+              Timber.d("Image Available");
+              Image img = reader.acquireNextImage();
+              // Use acquireNextImage since image reader is only for one image.
+              if (img == null) {
+                Timber.d("No Image was found");
+                setBarcodeProcessingAsIdle();
+                return;
+              }
+              if (isBusyInDetectingBarcodes) {
+                Timber.d("Skipping..As Barcode is Still Processing");
+                img.close();
+                return;
+              }
+              Timber.d("Image found..Will Send for Barcode Detection");
+              handleDetectionForBarcode(imageStreamSink, img, formatList, imageRotation);
+            },
+            handler);
+  }
+
+  private void handleDetectionForBarcode(final EventChannel.EventSink imageStreamSink,Image image,List<Integer> formatList,Integer imageRotation) {
+
+    setBarcodeProcessingAsBusy();
+    ByteBuffer bytesBuffer = ByteBuffer.allocate(0);
+    for (Image.Plane plane : image.getPlanes()) {
+      ByteBuffer planeBuffer = plane.getBuffer();
+      bytesBuffer = appendByteBuffer(bytesBuffer, planeBuffer);
+    }
+
+    InputImage inputImage = InputImage.fromByteArray(getBytes(bytesBuffer),
+            image.getWidth(),
+            image.getHeight(),
+            imageRotation,
+            InputImage.IMAGE_FORMAT_NV21);
+
+    //InputImage inputImage = InputImage.fromMediaImage(image,imageRotation);
+    image.close();
+    if (formatList == null) {
+      imageStreamSink.error("BarcodeDetectorError", "Invalid barcode formats", null);
+      setBarcodeProcessingAsIdle();
+      return;
+    }
+
+    BarcodeScannerOptions barcodeScannerOptions;
+    if (formatList.size() > 1) {
+      int[] array = new int[formatList.size()];
+      for (int i = 1; i < formatList.size(); i++) {
+        array[i] = formatList.get(i);
+      }
+      barcodeScannerOptions = new BarcodeScannerOptions.Builder().setBarcodeFormats(formatList.get(0), array).build();
+    } else {
+      barcodeScannerOptions = new BarcodeScannerOptions.Builder().setBarcodeFormats(formatList.get(0)).build();
+    }
+
+    Timber.d("Will process Image now");
+    barcodeScanner = BarcodeScanning.getClient(barcodeScannerOptions);
+    barcodeScanner.process(inputImage).addOnSuccessListener(new OnSuccessListener<List<Barcode>>() {
+      @Override
+      public void onSuccess(List<Barcode> barcodes) {
+        Timber.d("Barcode Detection has ended Successfully");
+        List<Map<String, Object>> barcodeList = new ArrayList<>(barcodes.size());
+        for (Barcode barcode : barcodes) {
+          Map<String, Object> barcodeMap = getBarcodeMap(barcode);
+          barcodeList.add(barcodeMap);
+        }
+        Timber.d("Total Number of Barcodes found:"+barcodeList.size());
+        final Handler handler = new Handler(Looper.getMainLooper());
+        setBarcodeProcessingAsIdle();
+        Timber.d("Will reply Dart with received barcode");
+        handler.post(() -> imageStreamSink.success(barcodeList));
+      }
+    }).addOnFailureListener(new OnFailureListener() {
+      @Override
+      public void onFailure(@NonNull Exception e) {
+        Timber.d("Barcode Detection has failed.Error: "+e.toString());
+        final Handler handler = new Handler(Looper.getMainLooper());
+        setBarcodeProcessingAsIdle();
+        handler.post(() -> imageStreamSink.error("BarcodeDetectorError", e.toString(), null));
+      }
+    });
+  }
+
+  @NonNull
+  private Map<String, Object> getBarcodeMap(Barcode barcode) {
+    Map<String, Object> barcodeMap = new HashMap<>();
+    int valueType = barcode.getValueType();
+    barcodeMap.put("type", valueType);
+    barcodeMap.put("format", barcode.getFormat());
+    barcodeMap.put("rawValue", barcode.getRawValue());
+    barcodeMap.put("rawBytes", barcode.getRawBytes());
+    barcodeMap.put("displayValue", barcode.getDisplayValue());
+    Rect bb = barcode.getBoundingBox();
+    if (bb != null) {
+      barcodeMap.put("boundingBoxBottom", bb.bottom);
+      barcodeMap.put("boundingBoxLeft", bb.left);
+      barcodeMap.put("boundingBoxRight", bb.right);
+      barcodeMap.put("boundingBoxTop", bb.top);
+    }
+    switch (valueType) {
+      case Barcode.TYPE_UNKNOWN:
+      case Barcode.TYPE_ISBN:
+      case Barcode.TYPE_PRODUCT:
+      case Barcode.TYPE_TEXT:
+        break;
+      case Barcode.TYPE_WIFI:
+        barcodeMap.put("ssid", barcode.getWifi().getSsid());
+        barcodeMap.put("password", barcode.getWifi().getPassword());
+        barcodeMap.put("encryption", barcode.getWifi().getEncryptionType());
+        break;
+      case Barcode.TYPE_URL:
+        barcodeMap.put("title", barcode.getUrl().getTitle());
+        barcodeMap.put("url", barcode.getUrl().getUrl());
+        break;
+      case Barcode.TYPE_EMAIL:
+        barcodeMap.put("address", barcode.getEmail().getAddress());
+        barcodeMap.put("body", barcode.getEmail().getBody());
+        barcodeMap.put("subject", barcode.getEmail().getSubject());
+        barcodeMap.put("emailType", barcode.getEmail().getType());
+        break;
+
+      case Barcode.TYPE_PHONE:
+        barcodeMap.put("number", barcode.getPhone().getNumber());
+        barcodeMap.put("phoneType", barcode.getPhone().getType());
+        break;
+      case Barcode.TYPE_SMS:
+        barcodeMap.put("message", barcode.getSms().getMessage());
+        barcodeMap.put("number", barcode.getSms().getPhoneNumber());
+        break;
+      case Barcode.TYPE_GEO:
+        barcodeMap.put("latitude", barcode.getGeoPoint().getLat());
+        barcodeMap.put("longitude", barcode.getGeoPoint().getLng());
+        break;
+      case Barcode.TYPE_DRIVER_LICENSE:
+        barcodeMap.put("addressCity", barcode.getDriverLicense().getAddressCity());
+        barcodeMap.put("addressState", barcode.getDriverLicense().getAddressState());
+        barcodeMap.put("addressZip", barcode.getDriverLicense().getAddressZip());
+        barcodeMap.put("addressStreet", barcode.getDriverLicense().getAddressStreet());
+        barcodeMap.put("issueDate", barcode.getDriverLicense().getIssueDate());
+        barcodeMap.put("birthDate", barcode.getDriverLicense().getBirthDate());
+        barcodeMap.put("expiryDate", barcode.getDriverLicense().getExpiryDate());
+        barcodeMap.put("gender", barcode.getDriverLicense().getGender());
+        barcodeMap.put("licenseNumber", barcode.getDriverLicense().getLicenseNumber());
+        barcodeMap.put("firstName", barcode.getDriverLicense().getFirstName());
+        barcodeMap.put("lastName", barcode.getDriverLicense().getLastName());
+        barcodeMap.put("country", barcode.getDriverLicense().getIssuingCountry());
+        break;
+
+      case Barcode.TYPE_CONTACT_INFO:
+        barcodeMap.put("firstName", barcode.getContactInfo().getName().getFirst());
+        barcodeMap.put("lastName", barcode.getContactInfo().getName().getLast());
+        barcodeMap.put("formattedName", barcode.getContactInfo().getName().getFormattedName());
+        barcodeMap.put("organization", barcode.getContactInfo().getOrganization());
+        List<Map<String, Object>> queries = new ArrayList<>();
+        for (Barcode.Address address : barcode.getContactInfo().getAddresses()) {
+          Map<String, Object> addressMap = new HashMap<>();
+          addressMap.put("addressType", address.getType());
+          List<String> addressLines = new ArrayList<>();
+          for (String addressLine : address.getAddressLines()) {
+            addressLines.add(addressLine);
+          }
+          addressMap.put("addressLines", addressLines);
+          queries.add(addressMap);
+        }
+        barcodeMap.put("addresses", queries);
+        queries = new ArrayList<>();
+        for (Barcode.Phone phone : barcode.getContactInfo().getPhones()) {
+          Map<String, Object> phoneMap = new HashMap<>();
+          phoneMap.put("number", phone.getNumber());
+          phoneMap.put("phoneType", phone.getType());
+          queries.add(phoneMap);
+        }
+        barcodeMap.put("phones", queries);
+        queries = new ArrayList<>();
+        for (Barcode.Email email : barcode.getContactInfo().getEmails()) {
+          Map<String, Object> emailMap = new HashMap<>();
+          emailMap.put("address", email.getAddress());
+          emailMap.put("body", email.getBody());
+          emailMap.put("subject", email.getSubject());
+          emailMap.put("emailType", email.getType());
+          queries.add(emailMap);
+        }
+        barcodeMap.put("emails", queries);
+        List<String> urls = new ArrayList<>(barcode.getContactInfo().getUrls());
+        barcodeMap.put("urls", urls);
+        break;
+
+      case Barcode.TYPE_CALENDAR_EVENT:
+        barcodeMap.put("description", barcode.getCalendarEvent().getDescription());
+        barcodeMap.put("location", barcode.getCalendarEvent().getLocation());
+        barcodeMap.put("status", barcode.getCalendarEvent().getStatus());
+        barcodeMap.put("summary", barcode.getCalendarEvent().getSummary());
+        barcodeMap.put("organizer", barcode.getCalendarEvent().getOrganizer());
+        barcodeMap.put("start", barcode.getCalendarEvent().getStart().getRawValue());
+        barcodeMap.put("end", barcode.getCalendarEvent().getEnd().getRawValue());
+        break;
+    }
+    return barcodeMap;
+  }
+
+  @NonNull
+  private byte[] getBytes(ByteBuffer bytesBuffer) {
+    bytesBuffer.rewind();
+    int lengthOfBuffer = bytesBuffer.limit();
+    byte[] imageBytes = new byte[lengthOfBuffer];
+    bytesBuffer.get(imageBytes, 0, lengthOfBuffer);
+    return imageBytes;
+  }
+
+  @NonNull
+  private ByteBuffer appendByteBuffer(ByteBuffer bytesBuffer, ByteBuffer buffer) {
+    int previousLengthOfBuffer = bytesBuffer.limit();
+    int newLengthOfBuffer = previousLengthOfBuffer + buffer.limit();
+    bytesBuffer.rewind();
+    bytesBuffer = ByteBuffer.allocate(newLengthOfBuffer).put(bytesBuffer).put(buffer);
+    return bytesBuffer;
+  }
+
+  private void setBarcodeProcessingAsBusy() {
+    isBusyInDetectingBarcodes = true;
+  }
+
+  private void setBarcodeProcessingAsIdle() {
+    isBusyInDetectingBarcodes = false;
+  }
+
+  public void closeDetector() {
+    if(barcodeScanner != null){
+      barcodeScanner.close();
+    }
   }
 
   /**

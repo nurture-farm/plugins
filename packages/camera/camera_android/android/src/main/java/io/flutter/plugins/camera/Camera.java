@@ -1139,6 +1139,23 @@ class Camera
     Log.i(TAG, "startPreviewWithImageStream");
   }
 
+  public void startBarcodeDetection(EventChannel imageStreamChannel, List<Integer> formatList, Integer imageRotation) throws CameraAccessException {
+    createCaptureSession(CameraDevice.TEMPLATE_RECORD, imageStreamReader.getSurface());
+    Log.i(TAG, "startBarcodeDetection");
+    imageStreamChannel.setStreamHandler(
+            new EventChannel.StreamHandler() {
+              @Override
+              public void onListen(Object o, EventChannel.EventSink imageStreamSink) {
+                setImageStreamImageAvailableListenerForBarcodeDetection(imageStreamSink, formatList, imageRotation);
+              }
+
+              @Override
+              public void onCancel(Object o) {
+                imageStreamReader.setOnImageAvailableListener(null, backgroundHandler);
+              }
+            });
+  }
+
   /**
    * This a callback object for the {@link ImageReader}. "onImageAvailable" will be called when a
    * still image is ready to be saved.
@@ -1218,6 +1235,14 @@ class Camera
     }
 
     imageStreamReader.subscribeListener(this.captureProps, imageStreamSink, backgroundHandler);
+  }
+
+  private void setImageStreamImageAvailableListenerForBarcodeDetection(final EventChannel.EventSink imageStreamSink,final List<Integer> formatList,Integer imageRotation) {
+    if (imageStreamReader == null) {
+      return;
+    }
+
+    imageStreamReader.subscribeBarcodeListener(formatList,imageRotation, imageStreamSink, backgroundHandler);
   }
 
   void closeCaptureSession() {

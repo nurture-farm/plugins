@@ -70,4 +70,6 @@ dependencies {
     testImplementation 'org.mockito:mockito-inline:5.0.0'
     testImplementation 'androidx.test:core:1.4.0'
     testImplementation 'org.robolectric:robolectric:4.10.3'
+    implementation 'com.google.android.gms:play-services-mlkit-barcode-scanning:17.0.0'
+    implementation 'com.jakewharton.timber:timber:4.7.1'
 }
