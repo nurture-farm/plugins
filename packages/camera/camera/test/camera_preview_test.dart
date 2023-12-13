@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import 'package:camera/camera.dart';
+import 'package:camera/src/barcode_scanner.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -96,6 +97,13 @@ class FakeController extends ValueNotifier<CameraValue>
   Future<void> startImageStream(onLatestImageAvailable onAvailable) async {}
 
   @override
+  Future<void> startStreamingForBarcodes({
+    required onLatestBarcodeAvailable onAvailable,
+    required int sensorOrientation,
+    required List<BarcodeFormat> formats,
+  }) async {}
+
+  @override
   Future<void> startVideoRecording(
       {onLatestImageAvailable? onAvailable}) async {}
 
@@ -122,6 +130,10 @@ class FakeController extends ValueNotifier<CameraValue>
 
   @override
   CameraDescription get description => value.description;
+
+  @override
+  Future<void> stopStreamingForBarcodes() async{}
+
 }
 
 void main() {
