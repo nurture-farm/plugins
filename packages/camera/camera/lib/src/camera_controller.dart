@@ -531,12 +531,9 @@ class CameraController extends ValueNotifier<CameraValue> {
         _cameraId,
         barcodeFormats: formats.map((f) => f.value).toList(),
         sensorOrientation: sensorOrientation,
-      ).listen(
-        (List<dynamic> barcodeData) {
-          final barcodesList = <Barcode>[];
-          for (dynamic item in barcodeData) {
-            barcodesList.add(Barcode.fromMap(item as Map<dynamic,dynamic>));
-          }
+      )
+          .listen(
+        (List<Barcode> barcodesList) {
           onAvailable(barcodesList);
         },
       );
