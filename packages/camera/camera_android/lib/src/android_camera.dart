@@ -65,7 +65,7 @@ class AndroidCamera extends CameraPlatform {
   StreamController<CameraImageData>? _frameStreamController;
 
   // The stream for vending frames to platform interface clients.
-  StreamController<List<dynamic>>? _barcodeFrameStreamController;
+  StreamController<List<Barcode>>? _barcodeFrameStreamController;
 
   Stream<CameraEvent> _cameraEvents(int cameraId) =>
       cameraEventStreamController.stream
@@ -312,7 +312,7 @@ class AndroidCamera extends CameraPlatform {
 
 
   @override
-  Stream<List<dynamic>> onStreamedBarcodeFrameAvailable(
+  Stream<List<Barcode>> onStreamedBarcodeFrameAvailable(
     int cameraId, {
     CameraImageStreamOptions? options,
     required int sensorOrientation,
@@ -335,8 +335,8 @@ class AndroidCamera extends CameraPlatform {
     return _frameStreamController!;
   }
 
-  StreamController<List<dynamic>> _installBarcodeStreamController({required Function() onListen}) {
-    _barcodeFrameStreamController = StreamController<List<dynamic>>(
+  StreamController<List<Barcode>> _installBarcodeStreamController({required Function() onListen}) {
+    _barcodeFrameStreamController = StreamController<List<Barcode>>(
       onListen: onListen,
       onPause: _onFrameStreamPauseResume,
       onResume: _onFrameStreamPauseResume,
@@ -379,8 +379,12 @@ class AndroidCamera extends CameraPlatform {
 
   void _startBarcodeStreamListener() {
     const EventChannel cameraEventChannel = EventChannel('plugins.flutter.io/camera_android/imageStream');
-    _platformImageStreamSubscription = cameraEventChannel.receiveBroadcastStream().listen((dynamic imageData) {
-      _barcodeFrameStreamController!.add(cameraImageFromPlatformData(imageData as Map<dynamic, dynamic>));
+    _platformImageStreamSubscription = cameraEventChannel.receiveBroadcastStream().listen((dynamic barcodeData) {
+      final List<Barcode> barcodesList = <Barcode>[];
+      for (dynamic item in barcodeData as List<dynamic>) {
+        barcodesList.add(Barcode.fromMap(item as Map<dynamic, dynamic>));
+      }
+      _barcodeFrameStreamController!.add(barcodesList);
     });
   }
 

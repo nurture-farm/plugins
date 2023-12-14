@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 import 'package:camera/camera.dart';
-import 'package:camera/src/barcode_scanner.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

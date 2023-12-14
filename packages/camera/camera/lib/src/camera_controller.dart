@@ -12,7 +12,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../camera.dart';
-import 'barcode_scanner.dart';
 
 /// Signature for a callback receiving the a camera image.
 ///
