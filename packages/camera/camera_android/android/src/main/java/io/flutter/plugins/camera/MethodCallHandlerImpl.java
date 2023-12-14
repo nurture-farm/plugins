@@ -268,6 +268,7 @@ final class MethodCallHandlerImpl implements MethodChannel.MethodCallHandler {
         {
           try {
             camera.startPreview();
+            camera.closeDetector();
             result.success(null);
           } catch (Exception e) {
             handleException(e, result);
@@ -281,16 +282,6 @@ final class MethodCallHandlerImpl implements MethodChannel.MethodCallHandler {
           List<Integer> formatList = call.argument("formats");
           int imageRotation = (Integer) call.argument("imageRotation");
           camera.startBarcodeDetection(imageStreamChannel,formatList,imageRotation);
-          result.success(null);
-        } catch (Exception e) {
-          handleException(e, result);
-        }
-        break;
-      }
-      case "stopBarcodeDetection": {
-        try {
-          camera.startPreview();
-          camera.closeDetector();
           result.success(null);
         } catch (Exception e) {
           handleException(e, result);

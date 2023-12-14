@@ -64,6 +64,9 @@ class AndroidCamera extends CameraPlatform {
   // The stream for vending frames to platform interface clients.
   StreamController<CameraImageData>? _frameStreamController;
 
+  // The stream for vending frames to platform interface clients.
+  StreamController<List<dynamic>>? _barcodeFrameStreamController;
+
   Stream<CameraEvent> _cameraEvents(int cameraId) =>
       cameraEventStreamController.stream
           .where((CameraEvent event) => event.cameraId == cameraId);
@@ -307,6 +310,20 @@ class AndroidCamera extends CameraPlatform {
     return _frameStreamController!.stream;
   }
 
+
+  @override
+  Stream<List<dynamic>> onStreamedBarcodeFrameAvailable(
+    int cameraId, {
+    CameraImageStreamOptions? options,
+    required int sensorOrientation,
+    required List<int> barcodeFormats,
+  }) {
+    _installBarcodeStreamController(onListen: () {
+      _onBarcodeFrameStreamListen(sensorOrientation, barcodeFormats);
+    });
+    return _barcodeFrameStreamController!.stream;
+  }
+
   StreamController<CameraImageData> _installStreamController(
       {Function()? onListen}) {
     _frameStreamController = StreamController<CameraImageData>(
@@ -316,6 +333,16 @@ class AndroidCamera extends CameraPlatform {
       onCancel: _onFrameStreamCancel,
     );
     return _frameStreamController!;
+  }
+
+  StreamController<List<dynamic>> _installBarcodeStreamController({required Function() onListen}) {
+    _barcodeFrameStreamController = StreamController<List<dynamic>>(
+      onListen: onListen,
+      onPause: _onFrameStreamPauseResume,
+      onResume: _onFrameStreamPauseResume,
+      onCancel: _onFrameStreamCancel,
+    );
+    return _barcodeFrameStreamController!;
   }
 
   void _onFrameStreamListen() {
@@ -337,11 +364,32 @@ class AndroidCamera extends CameraPlatform {
     });
   }
 
+  //Barcode
+  void _onBarcodeFrameStreamListen(int sensorOrientation,List<int> formats) {
+    _startBarcodePlatformStream(sensorOrientation,formats);
+  }
+
+  Future<void> _startBarcodePlatformStream(int sensorOrientation,List<int> formats) async {
+    await _channel.invokeMethod<void>('startBarcodeDetection',{
+      'formats' : formats,
+      'imageRotation': sensorOrientation,
+    });
+    _startBarcodeStreamListener();
+  }
+
+  void _startBarcodeStreamListener() {
+    const EventChannel cameraEventChannel = EventChannel('plugins.flutter.io/camera_android/imageStream');
+    _platformImageStreamSubscription = cameraEventChannel.receiveBroadcastStream().listen((dynamic imageData) {
+      _barcodeFrameStreamController!.add(cameraImageFromPlatformData(imageData as Map<dynamic, dynamic>));
+    });
+  }
+
   FutureOr<void> _onFrameStreamCancel() async {
     await _channel.invokeMethod<void>('stopImageStream');
     await _platformImageStreamSubscription?.cancel();
     _platformImageStreamSubscription = null;
     _frameStreamController = null;
+    _barcodeFrameStreamController = null;
   }
 
   void _onFrameStreamPauseResume() {
