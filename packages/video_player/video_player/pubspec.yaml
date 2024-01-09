@@ -6,7 +6,7 @@ issue_tracker: https://github.com/flutter/flutter/issues?q=is%3Aissue+is%3Aopen+
 version: 2.2.4
 
 environment:
-  sdk: ">=2.14.0 <3.0.0"
+  sdk: '>=3.0.3 <4.0.0'
   flutter: ">=2.5.0"
 
 flutter:
@@ -37,4 +37,4 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   pedantic: ^1.10.0
-  pigeon: ^0.1.21
+  pigeon: ^14.0.0
