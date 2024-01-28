@@ -28,9 +28,5 @@ dev_dependencies:
   integration_test:
     sdk: flutter
 
-dependency_overrides:
-  camera_android:
-    path: ../../camera_android
-
 flutter:
   uses-material-design: true
