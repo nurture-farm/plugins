@@ -64,6 +64,9 @@ class AVFoundationCamera extends CameraPlatform {
   // The stream for vending frames to platform interface clients.
   StreamController<CameraImageData>? _frameStreamController;
 
+  // The stream for vending frames to platform interface clients.
+  StreamController<List<Barcode>>? _barcodeFrameStreamController;
+
   Stream<CameraEvent> _cameraEvents(int cameraId) =>
       cameraEventStreamController.stream
           .where((CameraEvent event) => event.cameraId == cameraId);
@@ -156,6 +159,53 @@ class AVFoundationCamera extends CameraPlatform {
     );
 
     return completer.future;
+  }
+
+  @override
+  Stream<List<Barcode>> onStreamedBarcodeFrameAvailable(
+    int cameraId, {
+    CameraImageStreamOptions? options,
+    required int sensorOrientation,
+    required List<int> barcodeFormats,
+  }) {
+    _installBarcodeStreamController(onListen: () {
+      _onBarcodeFrameStreamListen(sensorOrientation, barcodeFormats);
+    });
+    return _barcodeFrameStreamController!.stream;
+  }
+
+  //Barcode
+  void _onBarcodeFrameStreamListen(int sensorOrientation,List<int> formats) {
+    _startBarcodePlatformStream(sensorOrientation,formats);
+  }
+
+  Future<void> _startBarcodePlatformStream(int sensorOrientation,List<int> formats) async {
+    await _channel.invokeMethod<void>('startBarcodeDetection',{
+      'formats' : formats,
+      'imageRotation': sensorOrientation,
+    });
+    _startBarcodeStreamListener();
+  }
+
+  void _startBarcodeStreamListener() {
+    const EventChannel cameraEventChannel = EventChannel('plugins.flutter.io/camera_avfoundation/imageStream');
+    _platformImageStreamSubscription = cameraEventChannel.receiveBroadcastStream().listen((dynamic barcodeData) {
+      final List<Barcode> barcodesList = <Barcode>[];
+      for (dynamic item in barcodeData as List<dynamic>) {
+        barcodesList.add(Barcode.fromMap(item as Map<dynamic, dynamic>));
+      }
+      _barcodeFrameStreamController!.add(barcodesList);
+    });
+  }
+
+  StreamController<List<Barcode>> _installBarcodeStreamController({required Function() onListen}) {
+    _barcodeFrameStreamController = StreamController<List<Barcode>>(
+      onListen: onListen,
+      onPause: _onFrameStreamPauseResume,
+      onResume: _onFrameStreamPauseResume,
+      onCancel: _onFrameStreamCancel,
+    );
+    return _barcodeFrameStreamController!;
   }
 
   @override
@@ -304,8 +354,7 @@ class AVFoundationCamera extends CameraPlatform {
   @override
   Stream<CameraImageData> onStreamedFrameAvailable(int cameraId,
       {CameraImageStreamOptions? options}) {
-    _frameStreamController =
-        _createStreamController(onListen: _onFrameStreamListen);
+    _frameStreamController = _createStreamController(onListen: _onFrameStreamListen);
     return _frameStreamController!.stream;
   }
 
@@ -329,10 +378,8 @@ class AVFoundationCamera extends CameraPlatform {
   }
 
   void _startStreamListener() {
-    const EventChannel cameraEventChannel =
-        EventChannel('plugins.flutter.io/camera_avfoundation/imageStream');
-    _platformImageStreamSubscription =
-        cameraEventChannel.receiveBroadcastStream().listen((dynamic imageData) {
+    const EventChannel cameraEventChannel = EventChannel('plugins.flutter.io/camera_avfoundation/imageStream');
+    _platformImageStreamSubscription = cameraEventChannel.receiveBroadcastStream().listen((dynamic imageData) {
       try {
         _channel.invokeMethod<void>('receivedImageStreamData');
       } on PlatformException catch (e) {

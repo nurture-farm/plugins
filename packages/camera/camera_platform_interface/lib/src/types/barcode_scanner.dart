@@ -221,10 +221,10 @@ class BarcodeValue {
         displayValue = barcodeData['displayValue'] as String?,
         boundingBox = barcodeData['boundingBoxLeft'] != null
             ? Rect.fromLTRB(
-            (barcodeData['boundingBoxLeft'] as int).toDouble(),
-            (barcodeData['boundingBoxTop'] as int).toDouble(),
-            (barcodeData['boundingBoxRight'] as int).toDouble(),
-            (barcodeData['boundingBoxBottom'] as int).toDouble())
+            (barcodeData['boundingBoxLeft'] as num).toDouble(),
+            (barcodeData['boundingBoxTop'] as num).toDouble(),
+            (barcodeData['boundingBoxRight'] as num).toDouble(),
+            (barcodeData['boundingBoxBottom'] as num).toDouble())
             : null;
   /// The format type of the barcode value.
   ///

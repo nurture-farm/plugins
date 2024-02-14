@@ -17,7 +17,11 @@ A Flutter plugin to use the camera from your Flutter app.
   s.public_header_files = 'Classes/**/*.h'
   s.module_map = 'Classes/CameraPlugin.modulemap'
   s.dependency 'Flutter'
-
+  s.dependency 'GoogleMLKit/BarcodeScanning', '~> 3.2.0'
   s.platform = :ios, '11.0'
-  s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }
+  # Flutter.framework does not contain a i386 slice. Only x86_64 simulators are supported.
+  s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'VALID_ARCHS[sdk=iphonesimulator*]' => 'x86_64' }
+  # Mobile vision doesn't support 32 bit ios
+  s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'VALID_ARCHS[sdk=iphoneos*]' => 'arm64' }
+  s.static_framework = true
 end

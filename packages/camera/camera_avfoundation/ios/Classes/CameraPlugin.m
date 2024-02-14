@@ -255,6 +255,12 @@
       [_camera resumePreviewWithResult:result];
     } else if ([@"setDescriptionWhileRecording" isEqualToString:call.method]) {
       [_camera setDescriptionWhileRecording:(call.arguments[@"cameraName"]) result:result];
+    } else if ([@"startBarcodeDetection" isEqual:call.method]) {
+      [_camera startBarcodeDetectionWithMessenger:_messenger];
+      [result sendSuccess];
+    } else if ([@"stopBarcodeDetection" isEqual:call.method]) {
+      [_camera stopBarcodeDetection];
+      [result sendSuccess];
     } else {
       [result sendNotImplemented];
     }

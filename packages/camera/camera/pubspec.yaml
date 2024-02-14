@@ -27,10 +27,7 @@ dependencies:
       ref: 0.10.5_3_barcode_scanning
       path: packages/camera/camera_android
   camera_avfoundation:
-    git:
-      url: https://github.com/nurture-farm/plugins
-      ref: 0.10.5_3_barcode_scanning
-      path: packages/camera/camera_avfoundation
+    path: ../camera_avfoundation
   camera_web:
     git:
       url: https://github.com/nurture-farm/plugins
@@ -47,6 +44,10 @@ dev_dependencies:
   mockito: 5.4.1
   plugin_platform_interface: ^2.0.0
   video_player: ^2.0.0
+
+dependency_overrides:
+  camera_avfoundation:
+    path: ../camera_avfoundation
 
 topics:
   - camera
