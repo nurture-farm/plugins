@@ -109,24 +109,7 @@ public class ImageStreamReader {
       @NonNull CameraCaptureProperties captureProps,
       @NonNull EventChannel.EventSink imageStreamSink) {
     try {
-      Map<String, Object> imageBuffer = new HashMap<>();
-
-      // Get plane data ready
-      if (dartImageFormat == ImageFormat.NV21) {
-        imageBuffer.put("planes", parsePlanesForNv21(image));
-      } else {
-        imageBuffer.put("planes", parsePlanesForYuvOrJpeg(image));
-      }
-
-      imageBuffer.put("width", image.getWidth());
-      imageBuffer.put("height", image.getHeight());
-      imageBuffer.put("format", dartImageFormat);
-      imageBuffer.put("lensAperture", captureProps.getLastLensAperture());
-      imageBuffer.put("sensorExposureTime", captureProps.getLastSensorExposureTime());
-      Integer sensorSensitivity = captureProps.getLastSensorSensitivity();
-      imageBuffer.put(
-          "sensorSensitivity", sensorSensitivity == null ? null : (double) sensorSensitivity);
-
+      Map<String, Object> imageBuffer = getImageBuffer(image, captureProps);
       final Handler handler = new Handler(Looper.getMainLooper());
       handler.post(() -> imageStreamSink.success(imageBuffer));
       image.close();
@@ -142,6 +125,27 @@ public class ImageStreamReader {
                   null));
       image.close();
     }
+  }
+
+  private Map<String, Object> getImageBuffer(Image image, CameraCaptureProperties captureProps) {
+    Map<String, Object> imageBuffer = new HashMap<>();
+
+    // Get plane data ready
+    if (dartImageFormat == ImageFormat.NV21) {
+      imageBuffer.put("planes", parsePlanesForNv21(image));
+    } else {
+      imageBuffer.put("planes", parsePlanesForYuvOrJpeg(image));
+    }
+
+    imageBuffer.put("width", image.getWidth());
+    imageBuffer.put("height", image.getHeight());
+    imageBuffer.put("format", dartImageFormat);
+    imageBuffer.put("lensAperture", captureProps.getLastLensAperture());
+    imageBuffer.put("sensorExposureTime", captureProps.getLastSensorExposureTime());
+    Integer sensorSensitivity = captureProps.getLastSensorSensitivity();
+    imageBuffer.put(
+        "sensorSensitivity", sensorSensitivity == null ? null : (double) sensorSensitivity);
+    return imageBuffer;
   }
 
   /**
@@ -226,6 +230,7 @@ public class ImageStreamReader {
   }
 
   public void subscribeBarcodeListener(
+          @NonNull CameraCaptureProperties captureProps,
           final List<Integer> formatList,
           Integer imageRotation,
           @NonNull EventChannel.EventSink imageStreamSink,
@@ -246,12 +251,16 @@ public class ImageStreamReader {
                 return;
               }
               Timber.d("Image found..Will Send for Barcode Detection");
-              handleDetectionForBarcode(imageStreamSink, img, formatList, imageRotation);
+              handleDetectionForBarcode(captureProps, imageStreamSink, img, formatList, imageRotation);
             },
             handler);
   }
 
-  private void handleDetectionForBarcode(final EventChannel.EventSink imageStreamSink,Image image,List<Integer> formatList,Integer imageRotation) {
+  private void handleDetectionForBarcode(@NonNull CameraCaptureProperties captureProps,
+                                         final EventChannel.EventSink imageStreamSink,
+                                         Image image,
+                                         List<Integer> formatList,
+                                         Integer imageRotation) {
 
     setBarcodeProcessingAsBusy();
     ByteBuffer bytesBuffer = ByteBuffer.allocate(0);
@@ -267,6 +276,7 @@ public class ImageStreamReader {
             InputImage.IMAGE_FORMAT_NV21);
 
     //InputImage inputImage = InputImage.fromMediaImage(image,imageRotation);
+    Map<String, Object> imageBuffer = getImageBuffer(image, captureProps);
     image.close();
     if (formatList == null) {
       imageStreamSink.error("BarcodeDetectorError", "Invalid barcode formats", null);
@@ -300,7 +310,10 @@ public class ImageStreamReader {
         final Handler handler = new Handler(Looper.getMainLooper());
         setBarcodeProcessingAsIdle();
         Timber.d("Will reply Dart with received barcode");
-        handler.post(() -> imageStreamSink.success(barcodeList));
+        Map<String, Object> imageBarcodeData = new HashMap<>();
+        imageBarcodeData.put("image",imageBuffer);
+        imageBarcodeData.put("barcodes",barcodeList);
+        handler.post(() -> imageStreamSink.success(imageBarcodeData));
       }
     }).addOnFailureListener(new OnFailureListener() {
       @Override

@@ -26,7 +26,7 @@ typedef onLatestImageAvailable = Function(CameraImage image);
 ///
 /// This is used by [CameraController.startStreamingForBarcodes].
 // ignore: inference_failure_on_function_return_type
-typedef onLatestBarcodeAvailable = void Function(List<Barcode> barcodes);
+typedef onLatestBarcodeAvailable = void Function(CameraImageBarcodeData barcodes);
 
 /// Completes with a list of available cameras.
 ///
@@ -533,7 +533,7 @@ class CameraController extends ValueNotifier<CameraValue> {
         sensorOrientation: sensorOrientation,
       )
           .listen(
-        (List<Barcode> barcodesList) {
+        (CameraImageBarcodeData barcodesList) {
           onAvailable(barcodesList);
         },
       );

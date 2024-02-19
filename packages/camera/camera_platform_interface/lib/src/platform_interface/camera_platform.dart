@@ -176,7 +176,7 @@ abstract class CameraPlatform extends PlatformInterface {
     throw UnimplementedError('onStreamedFrameAvailable() is not implemented.');
   }
 
-  Stream<List<Barcode>> onStreamedBarcodeFrameAvailable(int cameraId, {
+  Stream<CameraImageBarcodeData> onStreamedBarcodeFrameAvailable(int cameraId, {
     CameraImageStreamOptions? options,
     required int sensorOrientation,
     required List<int> barcodeFormats,

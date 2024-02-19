@@ -1251,7 +1251,7 @@ class Camera
       return;
     }
 
-    imageStreamReader.subscribeBarcodeListener(formatList,imageRotation, imageStreamSink, backgroundHandler);
+    imageStreamReader.subscribeBarcodeListener(this.captureProps, formatList,imageRotation, imageStreamSink, backgroundHandler);
   }
 
   void closeCaptureSession() {

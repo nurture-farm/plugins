@@ -65,7 +65,7 @@ class AndroidCamera extends CameraPlatform {
   StreamController<CameraImageData>? _frameStreamController;
 
   // The stream for vending frames to platform interface clients.
-  StreamController<List<Barcode>>? _barcodeFrameStreamController;
+  StreamController<CameraImageBarcodeData>? _barcodeFrameStreamController;
 
   Stream<CameraEvent> _cameraEvents(int cameraId) =>
       cameraEventStreamController.stream
@@ -312,7 +312,7 @@ class AndroidCamera extends CameraPlatform {
 
 
   @override
-  Stream<List<Barcode>> onStreamedBarcodeFrameAvailable(
+  Stream<CameraImageBarcodeData> onStreamedBarcodeFrameAvailable(
     int cameraId, {
     CameraImageStreamOptions? options,
     required int sensorOrientation,
@@ -335,8 +335,8 @@ class AndroidCamera extends CameraPlatform {
     return _frameStreamController!;
   }
 
-  StreamController<List<Barcode>> _installBarcodeStreamController({required Function() onListen}) {
-    _barcodeFrameStreamController = StreamController<List<Barcode>>(
+  StreamController<CameraImageBarcodeData> _installBarcodeStreamController({required Function() onListen}) {
+    _barcodeFrameStreamController = StreamController<CameraImageBarcodeData>(
       onListen: onListen,
       onPause: _onFrameStreamPauseResume,
       onResume: _onFrameStreamPauseResume,
@@ -355,12 +355,9 @@ class AndroidCamera extends CameraPlatform {
   }
 
   void _startStreamListener() {
-    const EventChannel cameraEventChannel =
-        EventChannel('plugins.flutter.io/camera_android/imageStream');
-    _platformImageStreamSubscription =
-        cameraEventChannel.receiveBroadcastStream().listen((dynamic imageData) {
-      _frameStreamController!
-          .add(cameraImageFromPlatformData(imageData as Map<dynamic, dynamic>));
+    const EventChannel cameraEventChannel = EventChannel('plugins.flutter.io/camera_android/imageStream');
+    _platformImageStreamSubscription = cameraEventChannel.receiveBroadcastStream().listen((dynamic imageData) {
+      _frameStreamController!.add(cameraImageFromPlatformData(imageData as Map<dynamic, dynamic>));
     });
   }
 
@@ -379,12 +376,19 @@ class AndroidCamera extends CameraPlatform {
 
   void _startBarcodeStreamListener() {
     const EventChannel cameraEventChannel = EventChannel('plugins.flutter.io/camera_android/imageStream');
-    _platformImageStreamSubscription = cameraEventChannel.receiveBroadcastStream().listen((dynamic barcodeData) {
+    _platformImageStreamSubscription = cameraEventChannel.receiveBroadcastStream().listen((dynamic imageBarcodeData) {
+      final List<dynamic> barcodeData = (imageBarcodeData as Map<dynamic,dynamic>)['barcodes'] as List<dynamic>;
+      final CameraImageData image = cameraImageFromPlatformData(imageBarcodeData['image'] as Map<dynamic, dynamic>);
       final List<Barcode> barcodesList = <Barcode>[];
-      for (dynamic item in barcodeData as List<dynamic>) {
+      for (final dynamic item in barcodeData) {
         barcodesList.add(Barcode.fromMap(item as Map<dynamic, dynamic>));
       }
-      _barcodeFrameStreamController!.add(barcodesList);
+      _barcodeFrameStreamController!.add(
+        CameraImageBarcodeData(
+          cameraImageData: image,
+          barcodes: barcodesList,
+        ),
+      );
     });
   }
 

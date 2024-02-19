@@ -65,7 +65,7 @@ class AVFoundationCamera extends CameraPlatform {
   StreamController<CameraImageData>? _frameStreamController;
 
   // The stream for vending frames to platform interface clients.
-  StreamController<List<Barcode>>? _barcodeFrameStreamController;
+  StreamController<CameraImageBarcodeData>? _barcodeFrameStreamController;
 
   Stream<CameraEvent> _cameraEvents(int cameraId) =>
       cameraEventStreamController.stream
@@ -162,7 +162,7 @@ class AVFoundationCamera extends CameraPlatform {
   }
 
   @override
-  Stream<List<Barcode>> onStreamedBarcodeFrameAvailable(
+  Stream<CameraImageBarcodeData> onStreamedBarcodeFrameAvailable(
     int cameraId, {
     CameraImageStreamOptions? options,
     required int sensorOrientation,
@@ -190,16 +190,16 @@ class AVFoundationCamera extends CameraPlatform {
   void _startBarcodeStreamListener() {
     const EventChannel cameraEventChannel = EventChannel('plugins.flutter.io/camera_avfoundation/imageStream');
     _platformImageStreamSubscription = cameraEventChannel.receiveBroadcastStream().listen((dynamic barcodeData) {
-      final List<Barcode> barcodesList = <Barcode>[];
-      for (dynamic item in barcodeData as List<dynamic>) {
-        barcodesList.add(Barcode.fromMap(item as Map<dynamic, dynamic>));
-      }
-      _barcodeFrameStreamController!.add(barcodesList);
+      // final List<Barcode> barcodesList = <Barcode>[];
+      // for (dynamic item in barcodeData as List<dynamic>) {
+      //   barcodesList.add(Barcode.fromMap(item as Map<dynamic, dynamic>));
+      // }
+      // _barcodeFrameStreamController!.add(barcodesList);
     });
   }
 
-  StreamController<List<Barcode>> _installBarcodeStreamController({required Function() onListen}) {
-    _barcodeFrameStreamController = StreamController<List<Barcode>>(
+  StreamController<CameraImageBarcodeData> _installBarcodeStreamController({required Function() onListen}) {
+    _barcodeFrameStreamController = StreamController<CameraImageBarcodeData>(
       onListen: onListen,
       onPause: _onFrameStreamPauseResume,
       onResume: _onFrameStreamPauseResume,

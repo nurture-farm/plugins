@@ -53,8 +53,7 @@ final class MethodCallHandlerImpl implements MethodChannel.MethodCallHandler {
     this.textureRegistry = textureRegistry;
 
     methodChannel = new MethodChannel(messenger, "plugins.flutter.io/camera_android");
-    imageStreamChannel =
-        new EventChannel(messenger, "plugins.flutter.io/camera_android/imageStream");
+    imageStreamChannel = new EventChannel(messenger, "plugins.flutter.io/camera_android/imageStream");
     methodChannel.setMethodCallHandler(this);
   }
 

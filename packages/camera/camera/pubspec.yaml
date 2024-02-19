@@ -22,10 +22,7 @@ flutter:
 
 dependencies:
   camera_android:
-    git:
-      url: https://github.com/nurture-farm/plugins
-      ref: 0.10.5_3_barcode_scanning
-      path: packages/camera/camera_android
+    path: ../camera_android
   camera_avfoundation:
     path: ../camera_avfoundation
   camera_web:

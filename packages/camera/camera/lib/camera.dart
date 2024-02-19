@@ -14,7 +14,8 @@ export 'package:camera_platform_interface/camera_platform_interface.dart'
         XFile,
         ImageFormatGroup,
         BarcodeFormat,
-        Barcode;
+        Barcode,
+        CameraImageBarcodeData;
 
 export 'src/camera_controller.dart';
 export 'src/camera_image.dart';
