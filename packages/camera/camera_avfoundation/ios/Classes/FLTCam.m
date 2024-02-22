@@ -436,7 +436,7 @@ NSString *const errorMethod = @"error";
                        arguments:@"sample buffer is not ready. Skipping sample"];
     return;
   }
-  if (_isStreamingImages) {
+  if (_isStreamingImages || _isScanningBarcode) {
     FlutterEventSink eventSink = _imageStreamHandler.eventSink;
     if (eventSink && (self.streamingPendingFramesCount < self.maxStreamingPendingFramesCount)) {
       self.streamingPendingFramesCount++;
@@ -448,6 +448,8 @@ NSString *const errorMethod = @"error";
       size_t imageHeight = CVPixelBufferGetHeight(pixelBuffer);
 
       NSMutableArray *planes = [NSMutableArray array];
+      NSMutableArray<PlaneData *> *planeData = [NSMutableArray array];
+      NSMutableData *planeBytes = [[NSMutableData alloc] init];
 
       const Boolean isPlanar = CVPixelBufferIsPlanar(pixelBuffer);
       size_t planeCount;
@@ -485,10 +487,12 @@ NSString *const errorMethod = @"error";
         planeBuffer[@"bytes"] = [FlutterStandardTypedData typedDataWithBytes:bytes];
 
         [planes addObject:planeBuffer];
+
+        [planeBytes appendData:bytes];
+        [planeData addObject: [[PlaneData alloc] initWithData:[NSNumber numberWithUnsignedLong:width]
+                                                         height:[NSNumber numberWithUnsignedLong:height]
+                                                    bytesPerRow:[NSNumber numberWithUnsignedLong:bytesPerRow]]];
       }
-      // Lock the base address before accessing pixel data, and unlock it afterwards.
-      // Done accessing the `pixelBuffer` at this point.
-      CVPixelBufferUnlockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
 
       NSMutableDictionary *imageBuffer = [NSMutableDictionary dictionary];
       imageBuffer[@"width"] = [NSNumber numberWithUnsignedLong:imageWidth];
@@ -501,69 +505,28 @@ NSString *const errorMethod = @"error";
       imageBuffer[@"sensorExposureTime"] = [NSNumber numberWithInt:nsExposureDuration];
       imageBuffer[@"sensorSensitivity"] = [NSNumber numberWithFloat:[_captureDevice ISO]];
 
-      dispatch_async(dispatch_get_main_queue(), ^{
-        eventSink(imageBuffer);
-      });
+      if(_isStreamingImages){
+          dispatch_async(dispatch_get_main_queue(), ^{
+              eventSink(imageBuffer);
+          });
+      }
+      if(_isScanningBarcode){
+          if (!_isDetectingBarcodeFromImage) {
+              OSType format = CVPixelBufferGetPixelFormatType(pixelBuffer);
+              NSLog(@"Will start handleDetection");
+              [self handleDetection:planeBytes
+                             buffer:imageBuffer
+                          planeData:planeData
+                              width:[NSNumber numberWithUnsignedLong:imageWidth]
+                             height:[NSNumber numberWithUnsignedLong:imageHeight]
+                             format:(FourCharCode)format];
+          }
+      }
+      // Lock the base address before accessing pixel data, and unlock it afterwards.
+      // Done accessing the `pixelBuffer` at this point.
+      CVPixelBufferUnlockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
     }
   }
-  if (_isScanningBarcode) {
-        if (_imageStreamHandler.eventSink) {
-            CVPixelBufferRef pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
-            CVPixelBufferLockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
-
-            size_t imageWidth = CVPixelBufferGetWidth(pixelBuffer);
-            size_t imageHeight = CVPixelBufferGetHeight(pixelBuffer);
-            OSType format = CVPixelBufferGetPixelFormatType(pixelBuffer);
-
-            NSMutableArray<PlaneData *> *planeData = [NSMutableArray array];
-            NSMutableData *planeBytes = [[NSMutableData alloc] init];
-
-            const Boolean isPlanar = CVPixelBufferIsPlanar(pixelBuffer);
-            size_t planeCount;
-            if (isPlanar) {
-                planeCount = CVPixelBufferGetPlaneCount(pixelBuffer);
-            } else {
-                planeCount = 1;
-            }
-
-            for (int i = 0; i < planeCount; i++) {
-                void *planeAddress;
-                size_t bytesPerRow;
-                size_t height;
-                size_t width;
-
-                if (isPlanar) {
-                    planeAddress = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, i);
-                    bytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, i);
-                    height = CVPixelBufferGetHeightOfPlane(pixelBuffer, i);
-                    width = CVPixelBufferGetWidthOfPlane(pixelBuffer, i);
-                } else {
-                    planeAddress = CVPixelBufferGetBaseAddress(pixelBuffer);
-                    bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer);
-                    height = CVPixelBufferGetHeight(pixelBuffer);
-                    width = CVPixelBufferGetWidth(pixelBuffer);
-                }
-
-                NSNumber *length = @(bytesPerRow * height);
-                NSData *bytes = [NSData dataWithBytes:planeAddress length:length.unsignedIntegerValue];
-
-                [planeBytes appendData:bytes];
-                [planeData addObject: [[PlaneData alloc] initWithData:[NSNumber numberWithUnsignedLong:width]
-                                                               height:[NSNumber numberWithUnsignedLong:height]
-                                                          bytesPerRow:[NSNumber numberWithUnsignedLong:bytesPerRow]] ];
-            }
-
-            if (!_isDetectingBarcodeFromImage) {
-                [self handleDetection:planeBytes
-                            planeData:planeData
-                                width:[NSNumber numberWithUnsignedLong:imageWidth]
-                               height:[NSNumber numberWithUnsignedLong:imageHeight]
-                               format:(FourCharCode)format];
-            }
-
-            CVPixelBufferUnlockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
-        }
-    }
   if (_isRecording && !_isRecordingPaused) {
     if (_videoWriter.status == AVAssetWriterStatusFailed) {
       [_methodChannel invokeMethod:errorMethod
@@ -1253,6 +1216,7 @@ NSString *const errorMethod = @"error";
 }
 
 - (void)handleDetection:(NSData *)bytes
+                 buffer:(NSMutableDictionary *)imageBuffer
               planeData:(NSArray<PlaneData *> *)planeData
         width:(NSNumber *)width
         height:(NSNumber *)height
@@ -1263,26 +1227,37 @@ NSString *const errorMethod = @"error";
     MLKBarcodeScanner *barcodeScanner = [MLKBarcodeScanner barcodeScannerWithOptions:options];
 
     _isDetectingBarcodeFromImage = YES;
+    NSLog(@"Will start processImage");
     [barcodeScanner processImage:image
                       completion:^(NSArray<MLKBarcode *> *barcodes, NSError *error) {
         if (error) {
+            NSLog(@"Got Error");
             if (self->_imageStreamHandler.eventSink) {
                 self->_imageStreamHandler.eventSink(error);
             }
             return;
         } else if (!barcodes) {
             if (self->_imageStreamHandler.eventSink) {
-                self->_imageStreamHandler.eventSink(@[]);
+                NSLog(@"No Barcodes");
+                self->_imageStreamHandler.eventSink(@{
+                        @"image":imageBuffer,
+                        @"barcodes":@[]
+                });
             }
             return;
         }
 
         NSMutableArray *array = [NSMutableArray array];
+        NSLog(@"Got Barcodes");
         for (MLKBarcode *barcode in barcodes) {
             [array addObject:[MLKVisionImage barcodeToDictionary:barcode]];
         }
         if (self->_imageStreamHandler.eventSink) {
-            self->_imageStreamHandler.eventSink(array);
+            self->_imageStreamHandler.eventSink(@{
+                                                        @"image":imageBuffer,
+                                                        @"barcodes":array
+                                                });
+            NSLog(@"Sent Reply");
         }
         self->_isDetectingBarcodeFromImage = NO;
     }];

@@ -189,12 +189,20 @@ class AVFoundationCamera extends CameraPlatform {
 
   void _startBarcodeStreamListener() {
     const EventChannel cameraEventChannel = EventChannel('plugins.flutter.io/camera_avfoundation/imageStream');
-    _platformImageStreamSubscription = cameraEventChannel.receiveBroadcastStream().listen((dynamic barcodeData) {
-      // final List<Barcode> barcodesList = <Barcode>[];
-      // for (dynamic item in barcodeData as List<dynamic>) {
-      //   barcodesList.add(Barcode.fromMap(item as Map<dynamic, dynamic>));
-      // }
-      // _barcodeFrameStreamController!.add(barcodesList);
+    _platformImageStreamSubscription = cameraEventChannel.receiveBroadcastStream().listen((dynamic imageBarcodeData) {
+      print(imageBarcodeData);
+      final List<dynamic> barcodeData = (imageBarcodeData as Map<dynamic,dynamic>)['barcodes'] as List<dynamic>;
+      final CameraImageData image = cameraImageFromPlatformData(imageBarcodeData['image'] as Map<dynamic, dynamic>);
+      final List<Barcode> barcodesList = <Barcode>[];
+      for (final dynamic item in barcodeData) {
+        barcodesList.add(Barcode.fromMap(item as Map<dynamic, dynamic>));
+      }
+      _barcodeFrameStreamController!.add(
+        CameraImageBarcodeData(
+          cameraImageData: image,
+          barcodes: barcodesList,
+        ),
+      );
     });
   }
 
