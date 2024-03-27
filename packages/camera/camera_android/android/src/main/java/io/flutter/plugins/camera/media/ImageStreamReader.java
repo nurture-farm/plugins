@@ -22,6 +22,7 @@ import java.util.Map;
 import android.graphics.Rect;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
 import com.google.mlkit.vision.barcode.common.Barcode;
 import com.google.mlkit.vision.barcode.BarcodeScanner;
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions;
@@ -129,22 +130,19 @@ public class ImageStreamReader {
 
   private Map<String, Object> getImageBuffer(Image image, CameraCaptureProperties captureProps) {
     Map<String, Object> imageBuffer = new HashMap<>();
-
     // Get plane data ready
     if (dartImageFormat == ImageFormat.NV21) {
       imageBuffer.put("planes", parsePlanesForNv21(image));
     } else {
       imageBuffer.put("planes", parsePlanesForYuvOrJpeg(image));
     }
-
     imageBuffer.put("width", image.getWidth());
     imageBuffer.put("height", image.getHeight());
     imageBuffer.put("format", dartImageFormat);
     imageBuffer.put("lensAperture", captureProps.getLastLensAperture());
     imageBuffer.put("sensorExposureTime", captureProps.getLastSensorExposureTime());
     Integer sensorSensitivity = captureProps.getLastSensorSensitivity();
-    imageBuffer.put(
-        "sensorSensitivity", sensorSensitivity == null ? null : (double) sensorSensitivity);
+    imageBuffer.put("sensorSensitivity", sensorSensitivity == null ? null : (double) sensorSensitivity);
     return imageBuffer;
   }
 
@@ -237,21 +235,20 @@ public class ImageStreamReader {
           @NonNull Handler handler) {
     imageReader.setOnImageAvailableListener(
             reader -> {
-              Timber.d("Image Available");
-              Image img = reader.acquireNextImage();
-              // Use acquireNextImage since image reader is only for one image.
-              if (img == null) {
-                Timber.d("No Image was found");
-                setBarcodeProcessingAsIdle();
-                return;
-              }
-              if (isBusyInDetectingBarcodes) {
+              if (!isBusyInDetectingBarcodes) {
+                Timber.d("Image Available");
+                Image img = reader.acquireNextImage();
+                // Use acquireNextImage since image reader is only for one image.
+                if (img == null) {
+                  Timber.d("No Image was found");
+                  setBarcodeProcessingAsIdle();
+                  return;
+                }
+                Timber.d("Image found..Will Send for Barcode Detection");
+                handleDetectionForBarcode(captureProps, imageStreamSink, img, formatList, imageRotation);
+              } else {
                 Timber.d("Skipping..As Barcode is Still Processing");
-                img.close();
-                return;
               }
-              Timber.d("Image found..Will Send for Barcode Detection");
-              handleDetectionForBarcode(captureProps, imageStreamSink, img, formatList, imageRotation);
             },
             handler);
   }
@@ -262,68 +259,62 @@ public class ImageStreamReader {
                                          List<Integer> formatList,
                                          Integer imageRotation) {
 
-    setBarcodeProcessingAsBusy();
-    ByteBuffer bytesBuffer = ByteBuffer.allocate(0);
-    for (Image.Plane plane : image.getPlanes()) {
-      ByteBuffer planeBuffer = plane.getBuffer();
-      bytesBuffer = appendByteBuffer(bytesBuffer, planeBuffer);
-    }
-
-    InputImage inputImage = InputImage.fromByteArray(getBytes(bytesBuffer),
-            image.getWidth(),
-            image.getHeight(),
-            imageRotation,
-            InputImage.IMAGE_FORMAT_NV21);
-
-    //InputImage inputImage = InputImage.fromMediaImage(image,imageRotation);
-    Map<String, Object> imageBuffer = getImageBuffer(image, captureProps);
-    image.close();
-    if (formatList == null) {
-      imageStreamSink.error("BarcodeDetectorError", "Invalid barcode formats", null);
-      setBarcodeProcessingAsIdle();
-      return;
-    }
-
-    BarcodeScannerOptions barcodeScannerOptions;
-    if (formatList.size() > 1) {
-      int[] array = new int[formatList.size()];
-      for (int i = 1; i < formatList.size(); i++) {
-        array[i] = formatList.get(i);
+    try{
+      setBarcodeProcessingAsBusy();
+      InputImage inputImage = InputImage.fromMediaImage(image, imageRotation);
+      Map<String, Object> imageBuffer = getImageBuffer(image, captureProps);
+      if (formatList == null) {
+        imageStreamSink.error("BarcodeDetectorError", "Invalid barcode formats", null);
+        setBarcodeProcessingAsIdle();
+        return;
       }
-      barcodeScannerOptions = new BarcodeScannerOptions.Builder().setBarcodeFormats(formatList.get(0), array).build();
-    } else {
-      barcodeScannerOptions = new BarcodeScannerOptions.Builder().setBarcodeFormats(formatList.get(0)).build();
-    }
 
-    Timber.d("Will process Image now");
-    barcodeScanner = BarcodeScanning.getClient(barcodeScannerOptions);
-    barcodeScanner.process(inputImage).addOnSuccessListener(new OnSuccessListener<List<Barcode>>() {
-      @Override
-      public void onSuccess(List<Barcode> barcodes) {
-        Timber.d("Barcode Detection has ended Successfully");
-        List<Map<String, Object>> barcodeList = new ArrayList<>(barcodes.size());
-        for (Barcode barcode : barcodes) {
-          Map<String, Object> barcodeMap = getBarcodeMap(barcode);
-          barcodeList.add(barcodeMap);
+      BarcodeScannerOptions barcodeScannerOptions;
+      if (formatList.size() > 1) {
+        int[] array = new int[formatList.size()];
+        for (int i = 1; i < formatList.size(); i++) {
+          array[i] = formatList.get(i);
         }
-        Timber.d("Total Number of Barcodes found:"+barcodeList.size());
-        final Handler handler = new Handler(Looper.getMainLooper());
-        setBarcodeProcessingAsIdle();
-        Timber.d("Will reply Dart with received barcode");
-        Map<String, Object> imageBarcodeData = new HashMap<>();
-        imageBarcodeData.put("image",imageBuffer);
-        imageBarcodeData.put("barcodes",barcodeList);
-        handler.post(() -> imageStreamSink.success(imageBarcodeData));
+        barcodeScannerOptions = new BarcodeScannerOptions.Builder().setBarcodeFormats(formatList.get(0), array).build();
+      } else {
+        barcodeScannerOptions = new BarcodeScannerOptions.Builder().setBarcodeFormats(formatList.get(0)).build();
       }
-    }).addOnFailureListener(new OnFailureListener() {
-      @Override
-      public void onFailure(@NonNull Exception e) {
-        Timber.d("Barcode Detection has failed.Error: "+e.toString());
-        final Handler handler = new Handler(Looper.getMainLooper());
+
+      Timber.d("Will process Image now");
+      barcodeScanner = BarcodeScanning.getClient(barcodeScannerOptions);
+      barcodeScanner.process(inputImage).addOnSuccessListener(new OnSuccessListener<List<Barcode>>() {
+        @Override
+        public void onSuccess(List<Barcode> barcodes) {
+          Timber.d("Barcode Detection has ended Successfully");
+          List<Map<String, Object>> barcodeList = new ArrayList<>(barcodes.size());
+          for (Barcode barcode : barcodes) {
+            Map<String, Object> barcodeMap = getBarcodeMap(barcode);
+            barcodeList.add(barcodeMap);
+          }
+          Timber.d("Total Number of Barcodes found:"+barcodeList.size());
+          final Handler handler = new Handler(Looper.getMainLooper());
+          Timber.d("Will reply Dart with received barcode");
+          Map<String, Object> imageBarcodeData = new HashMap<>();
+          imageBarcodeData.put("image",imageBuffer);
+          imageBarcodeData.put("barcodes",barcodeList);
+          handler.post(() -> imageStreamSink.success(imageBarcodeData));
+        }
+      }).addOnFailureListener(new OnFailureListener() {
+        @Override
+        public void onFailure(@NonNull Exception e) {
+          Timber.d("Barcode Detection has failed.Error: "+e.toString());
+          final Handler handler = new Handler(Looper.getMainLooper());
+          handler.post(() -> imageStreamSink.error("BarcodeDetectorError", e.toString(), null));
+        }
+      }).addOnCompleteListener((Task<List<Barcode>> firebaseVisionBarcodes) -> {
+        // regardless of failure or success, close the previous frame
+        // and process the next one.
         setBarcodeProcessingAsIdle();
-        handler.post(() -> imageStreamSink.error("BarcodeDetectorError", e.toString(), null));
-      }
-    });
+        image.close();
+      });
+    } catch (Exception e){
+      Timber.d("Exception occurred");
+    }
   }
 
   @NonNull
