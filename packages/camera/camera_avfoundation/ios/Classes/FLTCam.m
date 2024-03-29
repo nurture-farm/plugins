@@ -508,6 +508,7 @@ NSString *const errorMethod = @"error";
   }
   if (_isScanningBarcode) {
         if (_imageStreamHandler.eventSink && !_isDetectingBarcodeFromImage) {
+            _isDetectingBarcodeFromImage = YES;
             CVPixelBufferRef pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
             CVPixelBufferLockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
 
@@ -1277,18 +1278,19 @@ NSString *const errorMethod = @"error";
                   width:(NSNumber *)width
                  height:(NSNumber *)height
                  format:(FourCharCode)format {
+    
     MLKVisionImage *image = [MLKVisionImage visionImageFromData:bytes planeData:planeData width:width height:height format:format];
 
     MLKBarcodeScannerOptions *options = [[MLKBarcodeScannerOptions alloc] initWithFormats: MLKBarcodeFormatQRCode];
     MLKBarcodeScanner *barcodeScanner = [MLKBarcodeScanner barcodeScannerWithOptions:options];
 
-    _isDetectingBarcodeFromImage = YES;
     [barcodeScanner processImage:image
                       completion:^(NSArray<MLKBarcode *> *barcodes, NSError *error) {
         if (error) {
             if (self->_imageStreamHandler.eventSink) {
                 self->_imageStreamHandler.eventSink(error);
             }
+            self->_isDetectingBarcodeFromImage = NO;
             return;
         } else if (!barcodes) {
             if (self->_imageStreamHandler.eventSink) {
@@ -1296,6 +1298,7 @@ NSString *const errorMethod = @"error";
                                                       @"barcodes":@[]
                                                     });
             }
+            self->_isDetectingBarcodeFromImage = NO;
             return;
         }
 
