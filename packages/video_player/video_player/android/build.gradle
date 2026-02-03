@@ -27,7 +27,8 @@ project.getTasks().withType(JavaCompile){
 apply plugin: 'com.android.library'
 
 android {
-    compileSdkVersion 29
+    namespace "io.flutter.plugins.videoplayer"
+    compileSdkVersion 34
 
     defaultConfig {
         minSdkVersion 16
@@ -38,8 +39,8 @@ android {
         disable 'GradleDependency'
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 
     dependencies {
