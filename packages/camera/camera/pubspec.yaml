@@ -22,7 +22,6 @@ flutter:
 
 dependencies:
   camera_android:
-#    path: ../camera_android
     git:
       url: https://github.com/nurture-farm/plugins
       ref: "flutter_3.38.6_upgrade_mage_capture"
