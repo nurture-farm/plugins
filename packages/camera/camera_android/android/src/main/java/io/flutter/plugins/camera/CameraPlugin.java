@@ -36,24 +36,6 @@ public final class CameraPlugin implements FlutterPlugin, ActivityAware {
    */
   public CameraPlugin() {}
 
-  /**
-   * Registers a plugin implementation that uses the stable {@code io.flutter.plugin.common}
-   * package.
-   *
-   * <p>Calling this automatically initializes the plugin. However plugins initialized this way
-   * won't react to changes in activity or context, unlike {@link CameraPlugin}.
-   */
-  @SuppressWarnings("deprecation")
-  public static void registerWith(
-      @NonNull io.flutter.plugin.common.PluginRegistry.Registrar registrar) {
-    CameraPlugin plugin = new CameraPlugin();
-    plugin.maybeStartListening(
-        registrar.activity(),
-        registrar.messenger(),
-        registrar::addRequestPermissionsResultListener,
-        registrar.view());
-  }
-
   @Override
   public void onAttachedToEngine(@NonNull FlutterPluginBinding binding) {
     this.flutterPluginBinding = binding;
@@ -67,10 +49,10 @@ public final class CameraPlugin implements FlutterPlugin, ActivityAware {
   @Override
   public void onAttachedToActivity(@NonNull ActivityPluginBinding binding) {
     maybeStartListening(
-        binding.getActivity(),
-        flutterPluginBinding.getBinaryMessenger(),
-        binding::addRequestPermissionsResultListener,
-        flutterPluginBinding.getTextureRegistry());
+            binding.getActivity(),
+            flutterPluginBinding.getBinaryMessenger(),
+            binding::addRequestPermissionsResultListener,
+            flutterPluginBinding.getTextureRegistry());
   }
 
   @Override
@@ -93,12 +75,17 @@ public final class CameraPlugin implements FlutterPlugin, ActivityAware {
   }
 
   private void maybeStartListening(
-      Activity activity,
-      BinaryMessenger messenger,
-      PermissionsRegistry permissionsRegistry,
-      TextureRegistry textureRegistry) {
+          Activity activity,
+          BinaryMessenger messenger,
+          PermissionsRegistry permissionsRegistry,
+          TextureRegistry textureRegistry) {
+
     methodCallHandler =
-        new MethodCallHandlerImpl(
-            activity, messenger, new CameraPermissions(), permissionsRegistry, textureRegistry);
+            new MethodCallHandlerImpl(
+                    activity,
+                    messenger,
+                    new CameraPermissions(),
+                    permissionsRegistry,
+                    textureRegistry);
   }
 }
