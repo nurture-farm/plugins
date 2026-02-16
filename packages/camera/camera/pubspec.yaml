@@ -24,7 +24,7 @@ dependencies:
   camera_android:
     git:
       url: https://github.com/nurture-farm/plugins
-      ref: "flutter_3.38.6_upgrade_mage_capture"
+      ref: "0.10.8_8_barcode_screenshot"
       path: packages/camera/camera_android
   camera_avfoundation:
     git:
