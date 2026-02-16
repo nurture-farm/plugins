@@ -24,7 +24,7 @@ dependencies:
   camera_android:
     git:
       url: https://github.com/nurture-farm/plugins
-      ref: 0.10.7_7_barcode_screenshot
+      ref: "0.10.8_8_barcode_screenshot"
       path: packages/camera/camera_android
   camera_avfoundation:
     git:
@@ -38,13 +38,13 @@ dependencies:
       path: packages/camera/camera_web
   flutter:
     sdk: flutter
-  flutter_plugin_android_lifecycle: ^2.0.2
+  flutter_plugin_android_lifecycle: ^2.0.24
   quiver: ^3.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  mockito: 5.4.1
+  mockito: ^5.6.3
   plugin_platform_interface: ^2.0.0
   video_player: ^2.0.0
 
